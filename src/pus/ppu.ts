@@ -1,5 +1,5 @@
 import { isInRange } from "../utils/utils";
-import Display, { Pixel } from "../utils/display";
+import Display, { Pixel, Sprite } from "../utils/display";
 import Register from "./register";
 import ROM from "../rom/rom";
 import { Mirroring } from "../rom/romHeader";
@@ -63,7 +63,7 @@ enum PPUCTRLFlags {
  * PPU has 2 internal registers: v and t.
  * Both have identical internal structure, and it is as follows:
  * 
- * yyyNNYYYYYXXXXX
+ * yyyNNYYYYYXXXXX,
  * 
  * where:
  * 1. y - The fine Y position
@@ -173,7 +173,6 @@ export default class PPU {
     private internalTReg: Register<Uint16Array>;
 
     private OAM: Uint8Array;
-    // private ram: Uint8Array;
 
     /** 3 bits, holds X position on a 8x8 pixel tile */
     private fineX: number = 0x00;
@@ -184,11 +183,17 @@ export default class PPU {
     private patternTable: Uint8Array[] = new Array<Uint8Array>(2);
     private paletteTable: Uint8Array   = new Uint8Array(32);
 
+    private spritePatternTable: Sprite[] = [ new Sprite(128, 128), new Sprite(128, 128) ];
+    private spriteNameTable:    Sprite[] = new Array<Sprite>(2);
+    private spriteScreen:       Sprite   = new Sprite(256, 240);
+
     private scanline: number = 0;
     private cycle:    number    = 0;
 
     private display: Display | null;
     private rom: ROM | null;
+
+    public nmi: boolean = false;
 
     constructor() {
         this.PPUCTRL   = new Register<Uint8Array>(Uint8Array);
@@ -211,7 +216,19 @@ export default class PPU {
 
         this.display = null;
         this.rom     = null;
+    }
 
+
+
+    private getColor(palette: number, pixel: number): Pixel {
+        /*
+            43210
+            |||||
+            |||++- Pixel value from tile data
+            |++--- Palette number from attribute table or OAM
+            +----- Background/Sprite select (uhhh)
+        */
+        return this.palette[this.ppuRead(0x3F00 + (palette << 2) + pixel) & 0x3F];
     }
 
     public connectDisplay(display: Display): void {

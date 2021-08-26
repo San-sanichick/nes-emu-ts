@@ -28,8 +28,16 @@ export default class Bus {
 
     public connectRom(rom: ROM): void {
         this.rom = rom;
+        this.ppu.connectRom(this.rom);
     }
 
+    /**
+     * Loads a given chunk of data into {@link cpuRAM RAM}
+     * at a given starting address
+     * @param address Starting address
+     * @param data Program data to be loaded
+     * @throws Error if the program data goes out of bounds of the RAM
+     */
     public loadChunkToRam(address: number, data: Uint8Array): void {
         const endAddr = address + data.byteLength;
         if (endAddr > this.cpuRAM.byteLength) {
@@ -43,7 +51,8 @@ export default class Bus {
 
     public write(address: number, val: number): void {
         // 2KB internal RAM
-        // 0x0800-0x0FFF, 0x1000-0x17FF and 0x1800-0x1FFF mirror 0x0000-0x07FF
+        // 0x0800-0x0FFF, 
+        // 0x1000-0x17FF and 0x1800-0x1FFF mirror 0x0000-0x07FF
         if (isInRange(address, 0x0000, 0x1FFF)) {
             this.cpuRAM[address & 0x07FF] = val;
         }

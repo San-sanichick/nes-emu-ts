@@ -10,6 +10,36 @@ export class Pixel {
     }
 }
 
+export class Sprite {
+    private imgData: ImageData;
+
+    constructor (w: number, h: number) {
+        this.imgData = new ImageData(w, h);
+    }
+
+    public setPixel(x: number, y: number, color: Pixel): void {
+        // https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Pixel_manipulation_with_canvas
+        const index = y * (this.imgData.width * 4) + x * 4;
+        this.imgData.data[index]     = color.R;
+        this.imgData.data[index + 1] = color.G;
+        this.imgData.data[index + 2] = color.B;
+        this.imgData.data[index + 3] = 255;
+    }
+
+    public getPixel(x: number, y: number): Pixel {
+        const index = y * (this.imgData.width * 4) + x * 4;
+        return new Pixel(
+            this.imgData.data[index],
+            this.imgData.data[index + 1],
+            this.imgData.data[index + 2],
+        );
+    }
+
+    public getSprite(): ImageData {
+        return this.imgData;
+    }
+}
+
 export default class Display {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
@@ -32,7 +62,7 @@ export default class Display {
     }
 
     public drawPixel(x: number, y: number, color: Pixel): void {
-        const index = y * this.width + x;
+        const index = y * (this.width * 4) + x * 4;
         this.frameBuffer[index]     = color.R;
         this.frameBuffer[index + 1] = color.G;
         this.frameBuffer[index + 2] = color.B;
