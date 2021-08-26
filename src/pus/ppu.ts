@@ -1,5 +1,8 @@
+import { isInRange } from "../utils/utils";
 import Display, { Pixel } from "../utils/display";
 import Register from "./register";
+import ROM from "../rom/rom";
+import { Mirroring } from "../rom/romHeader";
 
 enum PPUMASKFlag {
     /** Greyscale (0: normal color, 1: produce a greyscale display) */
@@ -36,7 +39,8 @@ enum PPUStatusFlag {
 
 enum PPUCTRLFlags {
     /** Base nametable address (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00) */
-    nameTAddr     = 0,
+    nametableX    = 0,
+    nametableY    = 1,
     /**  VRAM address increment per CPU read/write of PPUDATA 
      * (0: add 1, going across; 1: add 32, going down) */
     vRAMAddr      = 2,
@@ -55,7 +59,18 @@ enum PPUCTRLFlags {
     genNMI        = 7
 }
 
-
+/**
+ * PPU has 2 internal registers: v and t.
+ * Both have identical internal structure, and it is as follows:
+ * 
+ * yyyNNYYYYYXXXXX
+ * 
+ * where:
+ * 1. y - The fine Y position
+ * 2. N - The index for choosing a certain name table
+ * 3. Y - The 5-bit coarse Y position
+ * 4. X - The 5-bit coarse X position
+ */
 const InternalRegister = {
     /** The 5-bit coarse X position, the counterpart of Y. */
     coarseX:    { pos: 0, width: 5 },
@@ -64,9 +79,9 @@ const InternalRegister = {
      * in the vertical direction. */
     coarseY:    { pos: 5, width: 5 },
     /** The index for choosing a certain name table. */
-    nametableX: { pos: 10 },
+    nametableX: { pos: 10, width: 1 },
     /** The index for choosing a certain name table. */
-    nametableY: { pos: 11 },
+    nametableY: { pos: 11, width: 1 },
     /** The fine Y position, 
      * the counterpart of {@link PPU.fineX fineX}, 
      * holding the Y position within a 8x8-pixel tile. */
@@ -154,23 +169,26 @@ export default class PPU {
     private PPUDATA:   Register<Uint8Array>;
     private OAMDMA:    Register<Uint8Array>;
 
-
     private internalVReg: Register<Uint16Array>;
     private internalTReg: Register<Uint16Array>;
 
-
     private OAM: Uint8Array;
-    private ram: Uint8Array;
+    // private ram: Uint8Array;
 
     /** 3 bits, holds X position on a 8x8 pixel tile */
     private fineX: number = 0x00;
     /** some weird temporary thingamajig that PPUSTATUS and PPUADDR use */
     private addressLatch: number = 0x00;
 
+    private nametables:   Uint8Array[] = new Array<Uint8Array>(2);
+    private patternTable: Uint8Array[] = new Array<Uint8Array>(2);
+    private paletteTable: Uint8Array   = new Uint8Array(32);
+
     private scanline: number = 0;
     private cycle:    number    = 0;
 
     private display: Display | null;
+    private rom: ROM | null;
 
     constructor() {
         this.PPUCTRL   = new Register<Uint8Array>(Uint8Array);
@@ -187,15 +205,21 @@ export default class PPU {
         this.internalTReg = new Register<Uint16Array>(Uint16Array);
         
         this.OAM = new Uint8Array(64 * 4); // 64 sprtes, 4 bytes each
-        this.ram = new Uint8Array(2048);
+        // this.ram = new Uint8Array(2048);
 
         this.PPUSTATUS.setRegister(0x80);
 
         this.display = null;
+        this.rom     = null;
+
     }
 
     public connectDisplay(display: Display): void {
         this.display = display;
+    }
+
+    public connectRom(rom: ROM): void {
+        this.rom = rom;
     }
 
     public debugRead(address: number): number {
@@ -221,7 +245,7 @@ export default class PPU {
                 this.PPUSTATUS.clearBit(PPUStatusFlag.V);
 
                 // this thing gets set to 0
-                this.addressLatch = 0x00;
+                this.addressLatch = 0;
                 break;
             // write only
             // OAMADDR
@@ -241,12 +265,15 @@ export default class PPU {
             // PPUDATA
             case 0x0007: {
                 // read
-                
+                data = this.PPUDATA.getRegisterValue;
+                this.PPUDATA.setRegister(this.ppuRead(this.internalVReg.getRegisterValue));
+
+                if (isInRange(address, 0x3F00, 0x3FFF)) {
+                    data = this.PPUDATA.getRegisterValue;
+                }
 
                 const vramVal = this.PPUCTRL.getBit(PPUCTRLFlags.vRAMAddr);
                 this.internalVReg.add(vramVal === 0 ? 1 : 32);
-
-                data = 0x03;
                 break;
             }
         }
@@ -259,10 +286,15 @@ export default class PPU {
             // PPUCTRL write only
             case 0x0000:
                 // write
+                this.PPUCTRL.setRegister(val);
+
+                this.internalTReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlags.nametableX), InternalRegister.nametableX);
+                this.internalTReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlags.nametableY), InternalRegister.nametableY)
                 break;
             // write only
             case 0x0001:
                 // write
+                this.PPUMASK.setRegister(val);
                 break;
             // read only
             case 0x0002: break;
@@ -277,25 +309,158 @@ export default class PPU {
             // write twice
             case 0x0005:
                 // write
-                // write again 
+                if (this.addressLatch === 0) {
+                    this.internalTReg.storeBits(val >> 3, InternalRegister.coarseX);
+                    this.fineX = val & 0x07;
+
+                    this.addressLatch = 1;
+                } else if (this.addressLatch === 1) { // write again
+                    this.internalTReg.storeBits(val >> 3, InternalRegister.coarseY);
+                    this.internalTReg.storeBits(val & 0x07, InternalRegister.fineY);
+
+                    this.addressLatch = 0;
+                } 
+                
+                
                 break;
             // write twice
             case 0x0006:
                 // write
-                // write again
+                if (this.addressLatch === 0) {
+                    // this.internalTReg.storeBits(val & 0x3F, 8, 6);
+                    // ! in case upper doesn't work
+                    this.internalTReg.setRegister((val & 0x3F) << 8 | this.internalTReg.getRegisterValue & 0x00FF);
+                    this.internalTReg.clearBit(15);
+
+                    this.addressLatch = 1;
+                } else if (this.addressLatch === 1) { // write again
+                    this.internalTReg.setRegister(this.internalTReg.getRegisterValue & 0xFF00 | val);
+                    this.internalVReg.setRegister(this.internalTReg.getRegisterValue);
+
+                    this.addressLatch = 0;
+                }
+                
                 break;
             // read/write
-            case 0x0007:
+            case 0x0007: {
                 // write
+                this.ppuWrite(this.internalVReg.getRegisterValue, val);
+
+                const vramVal = this.PPUCTRL.getBit(PPUCTRLFlags.vRAMAddr);
+                this.internalVReg.add(vramVal === 0 ? 1 : 32);
                 break;
+            }
         }
     }
 
     public ppuRead(address: number): number {
-        return address;
+        let data = 0x00;
+        address &= 0x3FFF;
+
+        const temp = this.rom.ppuRead(address);
+        if (temp) {
+            data = temp;
+        } else if (isInRange(address, 0x0000, 0x0FFF)) {
+            // pattern table 1
+            data = this.patternTable[0][address & 0x0FFF];
+        } else if (isInRange(address, 0x1000, 0x1FFF)) {
+            // pattern table 2
+            data = this.patternTable[1][address & 0x0FFF];
+        } else if (isInRange(address, 0x2000, 0x3EFF)) {
+            // nametables
+            address &= 0x0FFF;
+            const temp = address & 0x03FF;
+            const mirroring = this.rom.getRomHeader.getMirroring;
+
+            if (mirroring === Mirroring.VERTICAL) {
+                if (isInRange(address, 0x0000, 0x03FF)) {
+                    data = this.nametables[0][temp];
+                } else if (isInRange(address, 0x0400, 0x07FF)) {
+                    data = this.nametables[1][temp];
+                } else if (isInRange(address, 0x0800, 0x0BFF)) {
+                    data = this.nametables[0][temp];
+                } else if (isInRange(address, 0x0C00, 0x0FFF)) {
+                    data = this.nametables[1][temp];
+                }
+
+            } else if (mirroring === Mirroring.HORIZONTAL) {
+                if (isInRange(address, 0x0000, 0x03FF)) {
+                    data = this.nametables[0][temp];
+                } else if (isInRange(address, 0x0400, 0x07FF)) {
+                    data = this.nametables[0][temp];
+                } else if (isInRange(address, 0x0800, 0x0BFF)) {
+                    data = this.nametables[1][temp];
+                } else if (isInRange(address, 0x0C00, 0x0FFF)) {
+                    data = this.nametables[1][temp];
+                }
+            }
+        }
+        else if (isInRange(address, 0x3F00, 0x3FFF)) {
+            // palette RAM and mirrors of palette
+            address &= 0x001F;
+            if (address === 0x0010) address = 0x0000;
+            else if (address === 0x0014) address = 0x0004;
+            else if (address === 0x0018) address = 0x0008;
+            else if (address === 0x001C) address = 0x000C;
+            // the grayscale part only gets applied during reading
+            data = this.paletteTable[address] & (this.PPUMASK.getBit(PPUMASKFlag.Grayscale) ? 0x30 : 0x3F);
+        }
+
+        return data;
     }
 
-    public ppuWrite(address: number, val: number): void {
-        console.log(address, val);
+    public ppuWrite(address: number, data: number): void {
+        address &= 0x3FFF;
+
+        if (this.rom.cpuWrite(address, data)) {
+            // be happy
+        } else if (isInRange(address, 0x0000, 0x0FFF)) {
+            // pattern table 1
+            this.patternTable[0][address & 0x0FFF] = data;
+        } else if (isInRange(address, 0x1000, 0x1FFF)) {
+            // pattern table 2
+            this.patternTable[1][address & 0x0FFF] = data;
+        } else if (isInRange(address, 0x2000, 0x3EFF)) {
+            // nametables
+            address &= 0x0FFF;
+            const temp = address & 0x03FF;
+            const mirroring = this.rom.getRomHeader.getMirroring;
+
+            if (mirroring === Mirroring.VERTICAL) {
+                if (isInRange(address, 0x0000, 0x03FF)) {
+                    this.nametables[0][temp] = data;
+                } else if (isInRange(address, 0x0400, 0x07FF)) {
+                    this.nametables[1][temp] = data;
+                } else if (isInRange(address, 0x0800, 0x0BFF)) {
+                    this.nametables[0][temp] = data
+                } else if (isInRange(address, 0x0C00, 0x0FFF)) {
+                    this.nametables[1][temp] = data;
+                }
+
+            } else if (mirroring === Mirroring.HORIZONTAL) {
+                if (isInRange(address, 0x0000, 0x03FF)) {
+                    this.nametables[0][temp] = data;
+                } else if (isInRange(address, 0x0400, 0x07FF)) {
+                    this.nametables[0][temp] = data;
+                } else if (isInRange(address, 0x0800, 0x0BFF)) {
+                    this.nametables[1][temp] = data;
+                } else if (isInRange(address, 0x0C00, 0x0FFF)) {
+                    this.nametables[1][temp] = data;
+                }
+            }
+        }
+        else if (isInRange(address, 0x3F00, 0x3FFF)) {
+            // palette RAM and mirrors of palette
+            address &= 0x001F;
+            if (address === 0x0010) address = 0x0000;
+            else if (address === 0x0014) address = 0x0004;
+            else if (address === 0x0018) address = 0x0008;
+            else if (address === 0x001C) address = 0x000C;
+            this.paletteTable[address] = data;
+        }
+    }
+
+    public clock(): void {
+        // hooo booooi
     }
 }

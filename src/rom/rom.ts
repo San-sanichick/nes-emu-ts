@@ -23,6 +23,7 @@ export default class ROM {
     private CHRROMData: Uint8Array;
     private mapper: Mapper;
     
+    
     constructor(romData: Buffer) {
         this.data = new Uint8Array(romData);
         this.headerData = new RomHeader(this.data.subarray(0, HEADER_SIZE));

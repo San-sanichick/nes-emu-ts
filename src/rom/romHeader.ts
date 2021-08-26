@@ -16,6 +16,11 @@ interface Flags7 {
     VSUnisystem: boolean;
 }
 
+export enum Mirroring {
+    HORIZONTAL,
+    VERTICAL
+}
+
 /**
  * Represents the structure of the iNES-format ROM header
  */
@@ -46,6 +51,8 @@ export default class RomHeader {
     private readonly flag6obj: Flags6;
     private readonly flag7obj: Flags7;
 
+    private mirroring: Mirroring;
+
     constructor(header: Uint8Array) {
         this.headerData = header;
 
@@ -63,6 +70,8 @@ export default class RomHeader {
         this.flag6obj = this.parseFlags6();
         this.flag7obj = this.parseFlags7();
 
+        this.mirroring = this.flag6obj.mirroring ? Mirroring.VERTICAL : Mirroring.HORIZONTAL;
+
         this.mapperID = (+this.getFlags7Obj.upperMapperNumber << 4) | +this.getFlags6Obj.lowerMapperNumber;
         console.log(this.mapperID);
     }
@@ -76,6 +85,10 @@ export default class RomHeader {
      */
     get getPRGROMSize(): number {
         return this.PRG_ROM_size;
+    }
+
+    get getMirroring(): Mirroring {
+        return this.mirroring;
     }
 
     /**
