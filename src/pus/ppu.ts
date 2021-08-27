@@ -1,4 +1,4 @@
-import { isInRange } from "../utils/utils";
+import { fastRounding, isInRange } from "../utils/utils";
 import Display, { Pixel, Sprite } from "../utils/display";
 import Register from "./register";
 import ROM from "../rom/rom";
@@ -23,7 +23,7 @@ enum PPUMASKFlag {
     Blue
 }
 
-enum PPUStatusFlag {
+enum PPUSTATUSFlag {
     /** Sprite overflow, bugged */
     O = 5,
     /** Sprite 0 Hit.  Set when a nonzero pixel of sprite 0 overlaps
@@ -37,7 +37,7 @@ enum PPUStatusFlag {
     V = 7
 }
 
-enum PPUCTRLFlags {
+enum PPUCTRLFlag {
     /** Base nametable address (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00) */
     nametableX    = 0,
     nametableY    = 1,
@@ -106,6 +106,8 @@ export default class PPU {
         new Pixel(0, 60, 0),
         new Pixel(0, 50, 60),
         new Pixel(0, 0, 0),
+        new Pixel(0, 0, 0),
+        new Pixel(0, 0, 0),
 
         // 0x10 - 0x1f
         new Pixel(152, 150, 152),
@@ -121,6 +123,8 @@ export default class PPU {
         new Pixel(8, 124, 0),
         new Pixel(0, 118, 40),
         new Pixel(0, 102, 120),
+        new Pixel(0, 0, 0),
+        new Pixel(0, 0, 0),
         new Pixel(0, 0, 0),
 
         // 0x20 - 0x2f
@@ -138,6 +142,8 @@ export default class PPU {
         new Pixel(56, 204, 108),
         new Pixel(56, 180, 204),
         new Pixel(60, 60, 60),
+        new Pixel(0, 0, 0),
+        new Pixel(0, 0, 0),
 
         // 0x30 - 0x3f
         new Pixel(236, 238, 236),
@@ -153,7 +159,9 @@ export default class PPU {
         new Pixel(168, 226, 144),
         new Pixel(168, 226, 144),
         new Pixel(152, 226, 180),
-        new Pixel(160, 162, 160)
+        new Pixel(160, 162, 160),
+        new Pixel(0, 0, 0),
+        new Pixel(0, 0, 0)
     ]
 
     /**
@@ -176,19 +184,19 @@ export default class PPU {
 
     /** 3 bits, holds X position on a 8x8 pixel tile */
     private fineX: number = 0x00;
-    /** some weird temporary thingamajig that PPUSTATUS and PPUADDR use */
-    private addressLatch: number = 0x00;
+    /** First or second write toggle (a.k.a. address latch), used by PPUSCROLL and PPUADDR */
+    private w: number = 0x00;
 
     private nametables:   Uint8Array[] = new Array<Uint8Array>(2);
     private patternTable: Uint8Array[] = new Array<Uint8Array>(2);
     private paletteTable: Uint8Array   = new Uint8Array(32);
 
     private spritePatternTable: Sprite[] = [ new Sprite(128, 128), new Sprite(128, 128) ];
-    private spriteNameTable:    Sprite[] = new Array<Sprite>(2);
-    private spriteScreen:       Sprite   = new Sprite(256, 240);
+    private spriteNameTable:    Sprite[] = [ new Sprite(256, 240), new Sprite(256, 240) ];
 
     private scanline: number = 0;
-    private cycle:    number    = 0;
+    private cycle:    number = 0;
+    public  frameComplete: boolean = false;
 
     private display: Display | null;
     private rom: ROM | null;
@@ -218,7 +226,32 @@ export default class PPU {
         this.rom     = null;
     }
 
+    private getPatternTable(patternTableIndex: number, palette: number): Sprite {
+        for (let tileX = 0; tileX < 16; tileX++) {
+            for (let tileY = 0; tileY < 16; tileY++) {
+                const offset = tileY * 256 + tileX * 16;
 
+                for (let row = 0; row < 8; row++){
+                    let tileLSB = this.ppuRead(patternTableIndex * 0x1000 + offset + row + 0x0000);
+                    let tileMSB = this.ppuRead(patternTableIndex * 0x1000 + offset + row + 0x0008);
+
+                    for (let col = 0; col < 8; col++) {
+                        const pixel = (tileLSB & 0x01) + (tileMSB & 0x01);
+
+                        tileLSB >>= 1;
+                        tileMSB >>= 1;
+
+                        this.spritePatternTable[patternTableIndex].setPixel(
+                            tileX * 8 + (7 - col), 
+                            tileY * 8 + row, 
+                            this.getColor(palette, pixel)
+                        );
+                    }
+                }
+            }
+        }
+        return this.spritePatternTable[patternTableIndex];
+    }
 
     private getColor(palette: number, pixel: number): Pixel {
         /*
@@ -240,7 +273,37 @@ export default class PPU {
     }
 
     public debugRead(address: number): number {
-        return address;
+        let data = 0x00;
+
+        switch (address) {
+            case 0x0000: // PPUCTRL
+                data = this.PPUCTRL.getRegisterValue;
+                break;
+            case 0x0001: // PPUMASK
+                data = this.PPUMASK.getRegisterValue;
+                break;
+            case 0x0002: // PPUSTATUS
+                data = this.PPUSTATUS.getRegisterValue & 0xE0;
+                break;
+            case 0x0003: // OAMADDR
+                data = this.OAMADDR.getRegisterValue;
+                break;
+            case 0x0004: // OAMDATA
+                data = this.OAMDATA.getRegisterValue;
+                break;
+            case 0x0005: // PPUSCROLL
+                data = this.PPUSCROLL.getRegisterValue;
+                break;
+            case 0x0006: // PPUADDR
+                data = this.PPUADDR.getRegisterValue;
+                break;
+            case 0x0007: { // PPUDATA
+                data = this.PPUDATA.getRegisterValue;
+                break;
+            }
+        }
+
+        return data;
     }
 
     public cpuRead(address: number): number {
@@ -259,10 +322,10 @@ export default class PPU {
                 data = this.PPUSTATUS.getRegisterValue & 0xE0;
 
                 // cleared after reading, as per description of the flag
-                this.PPUSTATUS.clearBit(PPUStatusFlag.V);
+                this.PPUSTATUS.clearBit(PPUSTATUSFlag.V);
 
                 // this thing gets set to 0
-                this.addressLatch = 0;
+                this.w = 0;
                 break;
             // write only
             // OAMADDR
@@ -289,7 +352,7 @@ export default class PPU {
                     data = this.PPUDATA.getRegisterValue;
                 }
 
-                const vramVal = this.PPUCTRL.getBit(PPUCTRLFlags.vRAMAddr);
+                const vramVal = this.PPUCTRL.getBit(PPUCTRLFlag.vRAMAddr);
                 this.internalVReg.add(vramVal === 0 ? 1 : 32);
                 break;
             }
@@ -305,8 +368,8 @@ export default class PPU {
                 // write
                 this.PPUCTRL.setRegister(val);
 
-                this.internalTReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlags.nametableX), InternalRegister.nametableX);
-                this.internalTReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlags.nametableY), InternalRegister.nametableY)
+                this.internalTReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableX), InternalRegister.nametableX);
+                this.internalTReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableY), InternalRegister.nametableY)
                 break;
             // write only
             case 0x0001:
@@ -326,16 +389,16 @@ export default class PPU {
             // write twice
             case 0x0005:
                 // write
-                if (this.addressLatch === 0) {
+                if (this.w === 0) {
                     this.internalTReg.storeBits(val >> 3, InternalRegister.coarseX);
                     this.fineX = val & 0x07;
 
-                    this.addressLatch = 1;
-                } else if (this.addressLatch === 1) { // write again
+                    this.w = 1;
+                } else if (this.w === 1) { // write again
                     this.internalTReg.storeBits(val >> 3, InternalRegister.coarseY);
                     this.internalTReg.storeBits(val & 0x07, InternalRegister.fineY);
 
-                    this.addressLatch = 0;
+                    this.w = 0;
                 } 
                 
                 
@@ -343,18 +406,18 @@ export default class PPU {
             // write twice
             case 0x0006:
                 // write
-                if (this.addressLatch === 0) {
+                if (this.w === 0) {
                     // this.internalTReg.storeBits(val & 0x3F, 8, 6);
                     // ! in case upper doesn't work
                     this.internalTReg.setRegister((val & 0x3F) << 8 | this.internalTReg.getRegisterValue & 0x00FF);
                     this.internalTReg.clearBit(15);
 
-                    this.addressLatch = 1;
-                } else if (this.addressLatch === 1) { // write again
+                    this.w = 1;
+                } else if (this.w === 1) { // write again
                     this.internalTReg.setRegister(this.internalTReg.getRegisterValue & 0xFF00 | val);
                     this.internalVReg.setRegister(this.internalTReg.getRegisterValue);
 
-                    this.addressLatch = 0;
+                    this.w = 0;
                 }
                 
                 break;
@@ -363,7 +426,7 @@ export default class PPU {
                 // write
                 this.ppuWrite(this.internalVReg.getRegisterValue, val);
 
-                const vramVal = this.PPUCTRL.getBit(PPUCTRLFlags.vRAMAddr);
+                const vramVal = this.PPUCTRL.getBit(PPUCTRLFlag.vRAMAddr);
                 this.internalVReg.add(vramVal === 0 ? 1 : 32);
                 break;
             }
@@ -479,5 +542,70 @@ export default class PPU {
 
     public clock(): void {
         // hooo booooi
+        const incrScrollX = (): void => {
+            // hah
+        }
+
+        const incrScrollY = (): void => {
+            // hah
+        }
+
+        const transferAddrX = (): void => {
+            // huh
+        }
+
+        const loadBckgShifters = (): void => {
+            // hoh
+        }
+
+        const updateShifters = (): void => {
+            // heh
+        }
+
+        if (this.scanline >= -1 && this.scanline < 240) {
+            if (this.scanline === 0 && this.cycle === 0) {
+                this.cycle = 1;
+            }
+
+            if (this.scanline === -1 && this.cycle === 1) {
+                // we left the blanking interval
+                this.PPUSTATUS.clearBit(PPUSTATUSFlag.V);
+            }
+
+            // if ()
+        }
+
+        if (this.scanline >= 241 && this.scanline < 261) {
+            // we enter the blanking interval
+            this.PPUSTATUS.setBit(PPUSTATUSFlag.V);
+
+            if (this.PPUCTRL.getBit(PPUCTRLFlag.genNMI)) {
+                this.nmi = true;
+            }
+        }
+
+        let bckgPalette, bckgPixel;
+
+        if (this.PPUMASK.getBit(PPUMASKFlag.b)) {
+            const bit = 0x8000 >> this.fineX;
+
+            // magic
+        }
+
+        // sweet noise
+        this.display.drawPixel(this.cycle - 1, this.scanline, this.palette[fastRounding(Math.random()) ? 0x3F : 0x30]);
+        // this.display.drawPixel(this.cycle - 1, this.scanline, this.getColor(bckgPalette, bckgPixel));
+
+        this.cycle++;
+        if (this.cycle >= 341) {
+            this.cycle = 0;
+            this.scanline++;
+            if (this.scanline >= 261) {
+                this.scanline = -1;
+                this.frameComplete = true;
+                this.display.update();
+            }
+        }
+        
     }
 }

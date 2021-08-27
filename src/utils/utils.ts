@@ -5,3 +5,7 @@ export function to8bitBinary(num: number): string {
 export function isInRange(val: number, start: number, end: number): boolean {
     return val >= start && val <= end;
 }
+
+export function fastRounding(val: number): number {
+    return (val + (val > 0 ? 0.5 : -0.5)) << 0;
+}

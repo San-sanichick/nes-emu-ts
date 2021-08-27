@@ -82,12 +82,12 @@ export default class CPU {
      */
     private PS: Register<Uint8Array>;
 
-    private fetched: number = 0x00;
+    private fetched: number    = 0x00;
     private absAddress: number = 0x0000;
     private relAddress: number = 0x0000;
-    private opcode: number = 0x00;
-    private cycles = 0;
-    private clock = 0;
+    private opcode: number     = 0x00;
+    private cycles             = 0;
+    private internalClock      = 0;
 
     private bus: Bus | null;
 
@@ -466,7 +466,7 @@ export default class CPU {
     }
 
     get clockCount(): number {
-        return this.clock;
+        return this.internalClock;
     }
     
     public connectBus(bus: Bus): void {
@@ -631,6 +631,7 @@ export default class CPU {
         return res;
     }
 
+    /** unused */
     private writeToMemory(address: number, val: number): void {
         console.log(address, val);
     }
@@ -651,7 +652,7 @@ export default class CPU {
         return this.bus.read(this.absAddress);
     }
 
-    private runCycle(): void {
+    public clock(): void {
         if (this.cycles === 0) {
             this.opcode = this.fetchNextOpcode();
             const operation = this.operations[this.opcode];
@@ -667,12 +668,12 @@ export default class CPU {
         }
 
         this.cycles--;
-        this.clock++;
+        this.internalClock++;
     }
 
     public singleStep(): void {
         do {
-            this.runCycle();
+            this.clock();
         } while ((this.cycles !== 0));
     }
 
@@ -687,7 +688,7 @@ export default class CPU {
      * The same as IRQ, but cannot be disabled
      * NMI low: FFFA high: FFFB
      */
-    private NMI(): void {
+    public NMI(): void {
         this.writeToStack((this.PC.getRegisterValue >> 8) & 0x00FF);
         this.writeToStack(this.PC.getRegisterValue & 0x00FF);
 
@@ -716,7 +717,7 @@ export default class CPU {
      * 5. The interrupt disable flag is set in the status register.
      * 6. PC is loaded from the relevant vector (IRQ/BRK low: FFFE high: FFFF)
      */
-    private IRQ(): void {
+    public IRQ(): void {
         if (!this.PS.getBit(StatusFlag.INT_D)) {
             this.writeToStack((this.PC.getRegisterValue >> 8) & 0x00FF);
             this.writeToStack(this.PC.getRegisterValue & 0x00FF);
@@ -966,7 +967,7 @@ export default class CPU {
      * Break / interrupt
      */
     private BRK(): number {
-        console.warn("Invoked BRK, probably end of RAM");
+        // console.warn("Invoked BRK, probably end of RAM");
         this.PC.incr();
 
         this.PS.setBit(StatusFlag.INT_D);

@@ -15,7 +15,15 @@
         <link rel="stylesheet" href="./style/index.css">
     </head>
     <body>
-        <p class="pad-info"></p>
+        <!-- <p class="pad-info"></p> -->
+        <p class="fps"></p>
+        <canvas id="canvas" width="256" height="240"></canvas>
+        <fieldset>
+            <legend>Controls</legend>
+            <button class="run-btn">Run</button>
+            <button class="pause-btn">Pause</button>
+            <button class="single-step-btn">Single step</button>
+        </fieldset>
 
         <!-- You can also require other files to run in this process -->
         <script src="./dist/renderer.js"></script>

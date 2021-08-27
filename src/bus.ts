@@ -1,6 +1,7 @@
 import CPU from "./pus/cpu";
 import PPU from "./pus/ppu";
 import ROM from "./rom/rom";
+import Display from "./utils/display";
 import { isInRange } from "./utils/utils";
 
 export default class Bus {
@@ -10,10 +11,13 @@ export default class Bus {
     private cpuRAM: Uint8Array = new Uint8Array(2048);
 
     private cpu: CPU;
-    private ppu: PPU;
+    public ppu: PPU;
+
+    private systemClock: number = 0;
 
     constructor() {
         this.cpu = new CPU();
+        this.cpu.connectBus(this);
         this.ppu = new PPU();
         this.rom = null;
     }
@@ -29,6 +33,10 @@ export default class Bus {
     public connectRom(rom: ROM): void {
         this.rom = rom;
         this.ppu.connectRom(this.rom);
+    }
+
+    public connectDisplay(display: Display): void {
+        this.ppu.connectDisplay(display);
     }
 
     /**
@@ -61,7 +69,7 @@ export default class Bus {
         // Mirrors of 0x2000-0x2007 (repeats every 8 bytes) 
         if (isInRange(address, 0x2000, 0x3FFF)) {
             // val = 1;
-            this.ppu.cpuWrite(address, val)
+            this.ppu.cpuWrite(address & 0x0007, val)
         }
 
         // NES APU and I/O registers
@@ -96,7 +104,7 @@ export default class Bus {
         // PPU registers
         // Mirrors of 0x2000-0x2007 (repeats every 8 bytes) 
         if (isInRange(address, 0x2000, 0x3FFF)) {
-            this.ppu.cpuRead(address);
+            this.ppu.cpuRead(address & 0x0007);
         }
 
         // NES APU and I/O registers
@@ -119,5 +127,19 @@ export default class Bus {
         }
 
         return val;
+    }
+
+    public clock(): void {
+        this.ppu.clock();
+
+        // ppu does 3 dots, whatever that means
+        if (this.systemClock % 3 === 0) this.cpu.clock();
+
+        if (this.ppu.nmi) {
+            this.ppu.nmi = false;
+            this.cpu.NMI();
+        }
+
+        this.systemClock++;
     }
 }
