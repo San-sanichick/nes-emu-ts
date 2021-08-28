@@ -11,7 +11,7 @@ export default class Register<T extends TypedArray> {
         return this.data;
     }
 
-    get getRegisterValue(): number {
+    get getValue(): number {
         return this.data[0];
     }
 
@@ -68,23 +68,29 @@ export default class Register<T extends TypedArray> {
     public storeBits(val: number, pos: {pos: number, width: number}): void;
     public storeBits(val: number, pos?: number | {pos: number, width: number}, width?: number): void {
         if (typeof pos === "number" && width !== undefined) {
-            const ones = (1 << width) - 1;
-            val &= ones;
+            // const ones = (1 << width) - 1;
+            // val &= ones;
 
-            const mask = ~(ones << pos);
-            this.data[0] &= mask;
-            val <<= pos;
+            // const mask = ~(ones << pos);
+            // this.data[0] &= mask;
+            // val <<= pos;
 
-            this.data[0] |= val;
+            // this.data[0] |= val;
+            const mask = (1 << width) - 1;
+            val &= mask;
+            this.data[0] &= (~(mask << width) | (val << width));
         } else if (typeof pos !== "number" && width === undefined) {
-            const ones = (1 << pos.width) - 1;
-            val &= ones;
+            // const ones = (1 << pos.width) - 1;
+            // val &= ones;
 
-            const mask = ~(ones << pos.pos);
-            this.data[0] &= mask;
-            val <<= pos.pos;
+            // const mask = ~(ones << pos.pos);
+            // this.data[0] &= mask;
+            // val <<= pos.pos;
 
-            this.data[0] |= val;
+            // this.data[0] |= val;
+            const mask = (1 << pos.width) - 1;
+            val &= mask;
+            this.data[0] &= (~(mask << pos.width) | (val << pos.width));
         }
     }
 
@@ -98,6 +104,10 @@ export default class Register<T extends TypedArray> {
 
     public decr(): void {
         this.data[0]--;
+    }
+
+    public shiftLeft(): void {
+        this.data[0] <<= 1;
     }
 
     public add(val: number): void {

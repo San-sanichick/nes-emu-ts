@@ -73,7 +73,6 @@ export default class RomHeader {
         this.mirroring = this.flag6obj.mirroring ? Mirroring.VERTICAL : Mirroring.HORIZONTAL;
 
         this.mapperID = (+this.getFlags7Obj.upperMapperNumber << 4) | +this.getFlags6Obj.lowerMapperNumber;
-        console.log(this.mapperID);
     }
 
     get getCONST(): string {

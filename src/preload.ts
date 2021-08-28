@@ -2,6 +2,7 @@
 // It has the same sandbox as a Chrome extension.
 import { readFileSync } from "original-fs";
 import Bus from "./bus";
+import Register from "./pus/register";
 // import Pad from "./pad";
 import ROM from "./rom/rom";
 import Display from "./utils/display";
@@ -11,16 +12,18 @@ window.addEventListener("DOMContentLoaded", () => {
     const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
     const fpsDisplay = document.querySelector(".fps") as HTMLParagraphElement;
 
-    const runBtn = document.querySelector(".run-btn") as HTMLButtonElement;
-    const pauseBtn = document.querySelector(".pause-btn") as HTMLButtonElement;
+    const runBtn        = document.querySelector(".run-btn") as HTMLButtonElement;
+    const pauseBtn      = document.querySelector(".pause-btn") as HTMLButtonElement;
     const singleStepBtn = document.querySelector(".single-step-btn") as HTMLButtonElement;
     
     const display = new Display(canvas);
-    const bus = new Bus();
-    const rom = new ROM(readFileSync("./roms/dk.nes"));
+    const bus     = new Bus();
+    const rom     = new ROM(readFileSync("./roms/dk.nes"));
     bus.connectRom(rom);
     bus.connectDisplay(display);
     let run: boolean = false;
+
+    bus.reset();
 
     // let reqID: number = 0;
 
@@ -54,10 +57,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     singleStepBtn.addEventListener("click", () => {
         update();
-    })
-
-    // update();
-    
+    });
 
     // const padInfo = document.querySelector(".pad-info") as HTMLParagraphElement;
     // const pad = new Pad();

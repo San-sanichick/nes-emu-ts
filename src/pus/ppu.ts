@@ -71,7 +71,7 @@ enum PPUCTRLFlag {
  * 3. Y - The 5-bit coarse Y position
  * 4. X - The 5-bit coarse X position
  */
-const InternalRegister = {
+const IR = {
     /** The 5-bit coarse X position, the counterpart of Y. */
     coarseX:    { pos: 0, width: 5 },
     /** The 5-bit coarse Y position, 
@@ -164,9 +164,7 @@ export default class PPU {
         new Pixel(0, 0, 0)
     ]
 
-    /**
-     * 
-     */
+    // TODO add descriptions to registers
     private PPUCTRL:   Register<Uint8Array>;
     private PPUMASK:   Register<Uint8Array>;
     private PPUSTATUS: Register<Uint8Array>;
@@ -177,8 +175,8 @@ export default class PPU {
     private PPUDATA:   Register<Uint8Array>;
     private OAMDMA:    Register<Uint8Array>;
 
-    private internalVReg: Register<Uint16Array>;
-    private internalTReg: Register<Uint16Array>;
+    private vReg: Register<Uint16Array>;
+    private tReg: Register<Uint16Array>;
 
     private OAM: Uint8Array;
 
@@ -193,6 +191,21 @@ export default class PPU {
 
     private spritePatternTable: Sprite[] = [ new Sprite(128, 128), new Sprite(128, 128) ];
     private spriteNameTable:    Sprite[] = [ new Sprite(256, 240), new Sprite(256, 240) ];
+
+    private shiftPatternLow:  Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
+    private shiftPatternHigh: Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
+
+    // the nesdev wiki clearly states that these are 8-bit registers
+    // but everyone makes them 16-bit, and I fucking give up trying to
+    // figure out why that's the case
+    private shiftAttribLow:  Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
+    private shiftAttribHigh: Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
+
+    private tileID: number = 0x00;
+    private tileAttr: number = 0x00;
+    private tileLSB: number = 0x00;
+    private tileMSB: number = 0x00;
+
 
     private scanline: number = 0;
     private cycle:    number = 0;
@@ -214,16 +227,45 @@ export default class PPU {
         this.PPUDATA   = new Register<Uint8Array>(Uint8Array);
         this.OAMDMA    = new Register<Uint8Array>(Uint8Array);
 
-        this.internalVReg = new Register<Uint16Array>(Uint16Array);
-        this.internalTReg = new Register<Uint16Array>(Uint16Array);
+        this.vReg = new Register<Uint16Array>(Uint16Array);
+        this.tReg = new Register<Uint16Array>(Uint16Array);
         
         this.OAM = new Uint8Array(64 * 4); // 64 sprtes, 4 bytes each
         // this.ram = new Uint8Array(2048);
+        for (let i = 0; i < 2; i++) {
+            this.nametables[i] = new Uint8Array(1024);
+        }
+
+        for (let i = 0; i < 2; i++) {
+            this.patternTable[i] = new Uint8Array(4096);
+        }
 
         this.PPUSTATUS.setRegister(0x80);
 
         this.display = null;
         this.rom     = null;
+    }
+
+    reset(): void {
+       this.cycle = 0;
+       this.scanline = 0;
+       this.w = 0x00;
+       this.fineX = 0x00;
+       this.PPUDATA.setRegister(0x00);
+       this.PPUSTATUS.setRegister(0x00);
+       this.PPUMASK.setRegister(0x00);
+       this.PPUCTRL.setRegister(0x00);
+       this.vReg.setRegister(0x0000);
+       this.tReg.setRegister(0x0000);
+
+       this.tileID = 0x00;
+       this.tileAttr = 0x00;
+       this.tileMSB = 0x00;
+       this.tileLSB = 0x00;
+       this.shiftPatternLow.setRegister(0x0000);
+       this.shiftPatternHigh.setRegister(0x0000);
+       this.shiftAttribLow.setRegister(0x0000);
+       this.shiftAttribHigh.setRegister(0x0000);
     }
 
     private getPatternTable(patternTableIndex: number, palette: number): Sprite {
@@ -277,28 +319,28 @@ export default class PPU {
 
         switch (address) {
             case 0x0000: // PPUCTRL
-                data = this.PPUCTRL.getRegisterValue;
+                data = this.PPUCTRL.getValue;
                 break;
             case 0x0001: // PPUMASK
-                data = this.PPUMASK.getRegisterValue;
+                data = this.PPUMASK.getValue;
                 break;
             case 0x0002: // PPUSTATUS
-                data = this.PPUSTATUS.getRegisterValue & 0xE0;
+                data = this.PPUSTATUS.getValue & 0xE0;
                 break;
             case 0x0003: // OAMADDR
-                data = this.OAMADDR.getRegisterValue;
+                data = this.OAMADDR.getValue;
                 break;
             case 0x0004: // OAMDATA
-                data = this.OAMDATA.getRegisterValue;
+                data = this.OAMDATA.getValue;
                 break;
             case 0x0005: // PPUSCROLL
-                data = this.PPUSCROLL.getRegisterValue;
+                data = this.PPUSCROLL.getValue;
                 break;
             case 0x0006: // PPUADDR
-                data = this.PPUADDR.getRegisterValue;
+                data = this.PPUADDR.getValue;
                 break;
             case 0x0007: { // PPUDATA
-                data = this.PPUDATA.getRegisterValue;
+                data = this.PPUDATA.getValue;
                 break;
             }
         }
@@ -319,7 +361,7 @@ export default class PPU {
                 // we're not gonna bother with noise, cause it's noise,
                 // if some game is using noise as valid data, they should be
                 // ashamed
-                data = this.PPUSTATUS.getRegisterValue & 0xE0;
+                data = this.PPUSTATUS.getValue & 0xE0 | (this.PPUDATA.getValue & 0x1F);
 
                 // cleared after reading, as per description of the flag
                 this.PPUSTATUS.clearBit(PPUSTATUSFlag.V);
@@ -345,15 +387,15 @@ export default class PPU {
             // PPUDATA
             case 0x0007: {
                 // read
-                data = this.PPUDATA.getRegisterValue;
-                this.PPUDATA.setRegister(this.ppuRead(this.internalVReg.getRegisterValue));
+                data = this.PPUDATA.getValue;
+                this.PPUDATA.setRegister(this.ppuRead(this.vReg.getValue));
 
                 if (isInRange(address, 0x3F00, 0x3FFF)) {
-                    data = this.PPUDATA.getRegisterValue;
+                    data = this.PPUDATA.getValue;
                 }
 
                 const vramVal = this.PPUCTRL.getBit(PPUCTRLFlag.vRAMAddr);
-                this.internalVReg.add(vramVal === 0 ? 1 : 32);
+                this.vReg.add(vramVal === 0 ? 1 : 32);
                 break;
             }
         }
@@ -368,8 +410,8 @@ export default class PPU {
                 // write
                 this.PPUCTRL.setRegister(val);
 
-                this.internalTReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableX), InternalRegister.nametableX);
-                this.internalTReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableY), InternalRegister.nametableY)
+                this.tReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableX), IR.nametableX);
+                this.tReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableY), IR.nametableY)
                 break;
             // write only
             case 0x0001:
@@ -390,17 +432,16 @@ export default class PPU {
             case 0x0005:
                 // write
                 if (this.w === 0) {
-                    this.internalTReg.storeBits(val >> 3, InternalRegister.coarseX);
+                    this.tReg.storeBits(val >> 3, IR.coarseX);
                     this.fineX = val & 0x07;
 
                     this.w = 1;
                 } else if (this.w === 1) { // write again
-                    this.internalTReg.storeBits(val >> 3, InternalRegister.coarseY);
-                    this.internalTReg.storeBits(val & 0x07, InternalRegister.fineY);
+                    this.tReg.storeBits(val >> 3, IR.coarseY);
+                    this.tReg.storeBits(val & 0x07, IR.fineY);
 
                     this.w = 0;
                 } 
-                
                 
                 break;
             // write twice
@@ -409,13 +450,13 @@ export default class PPU {
                 if (this.w === 0) {
                     // this.internalTReg.storeBits(val & 0x3F, 8, 6);
                     // ! in case upper doesn't work
-                    this.internalTReg.setRegister((val & 0x3F) << 8 | this.internalTReg.getRegisterValue & 0x00FF);
-                    this.internalTReg.clearBit(15);
+                    this.tReg.setRegister((val & 0x3F) << 8 | this.tReg.getValue & 0x00FF);
+                    this.tReg.clearBit(15);
 
                     this.w = 1;
                 } else if (this.w === 1) { // write again
-                    this.internalTReg.setRegister(this.internalTReg.getRegisterValue & 0xFF00 | val);
-                    this.internalVReg.setRegister(this.internalTReg.getRegisterValue);
+                    this.tReg.setRegister(this.tReg.getValue & 0xFF00 | val);
+                    this.vReg.setRegister(this.tReg.getValue);
 
                     this.w = 0;
                 }
@@ -424,10 +465,10 @@ export default class PPU {
             // read/write
             case 0x0007: {
                 // write
-                this.ppuWrite(this.internalVReg.getRegisterValue, val);
+                this.ppuWrite(this.vReg.getValue, val);
 
                 const vramVal = this.PPUCTRL.getBit(PPUCTRLFlag.vRAMAddr);
-                this.internalVReg.add(vramVal === 0 ? 1 : 32);
+                this.vReg.add(vramVal === 0 ? 1 : 32);
                 break;
             }
         }
@@ -449,28 +490,35 @@ export default class PPU {
         } else if (isInRange(address, 0x2000, 0x3EFF)) {
             // nametables
             address &= 0x0FFF;
+
             const temp = address & 0x03FF;
             const mirroring = this.rom.getRomHeader.getMirroring;
 
             if (mirroring === Mirroring.VERTICAL) {
                 if (isInRange(address, 0x0000, 0x03FF)) {
                     data = this.nametables[0][temp];
-                } else if (isInRange(address, 0x0400, 0x07FF)) {
+                }
+                if (isInRange(address, 0x0400, 0x07FF)) {
                     data = this.nametables[1][temp];
-                } else if (isInRange(address, 0x0800, 0x0BFF)) {
+                }
+                if (isInRange(address, 0x0800, 0x0BFF)) {
                     data = this.nametables[0][temp];
-                } else if (isInRange(address, 0x0C00, 0x0FFF)) {
+                }
+                if (isInRange(address, 0x0C00, 0x0FFF)) {
                     data = this.nametables[1][temp];
                 }
 
             } else if (mirroring === Mirroring.HORIZONTAL) {
                 if (isInRange(address, 0x0000, 0x03FF)) {
                     data = this.nametables[0][temp];
-                } else if (isInRange(address, 0x0400, 0x07FF)) {
+                }
+                if (isInRange(address, 0x0400, 0x07FF)) {
                     data = this.nametables[0][temp];
-                } else if (isInRange(address, 0x0800, 0x0BFF)) {
+                }
+                if (isInRange(address, 0x0800, 0x0BFF)) {
                     data = this.nametables[1][temp];
-                } else if (isInRange(address, 0x0C00, 0x0FFF)) {
+                }
+                if (isInRange(address, 0x0C00, 0x0FFF)) {
                     data = this.nametables[1][temp];
                 }
             }
@@ -478,10 +526,12 @@ export default class PPU {
         else if (isInRange(address, 0x3F00, 0x3FFF)) {
             // palette RAM and mirrors of palette
             address &= 0x001F;
+            // 0x3F10/0x3F14/0x3F18/0x3F1C are mirrors of
+            // 0x3F00/0x3F04/0x3F08/0x3F0C.
             if (address === 0x0010) address = 0x0000;
-            else if (address === 0x0014) address = 0x0004;
-            else if (address === 0x0018) address = 0x0008;
-            else if (address === 0x001C) address = 0x000C;
+            if (address === 0x0014) address = 0x0004;
+            if (address === 0x0018) address = 0x0008;
+            if (address === 0x001C) address = 0x000C;
             // the grayscale part only gets applied during reading
             data = this.paletteTable[address] & (this.PPUMASK.getBit(PPUMASKFlag.Grayscale) ? 0x30 : 0x3F);
         }
@@ -509,22 +559,28 @@ export default class PPU {
             if (mirroring === Mirroring.VERTICAL) {
                 if (isInRange(address, 0x0000, 0x03FF)) {
                     this.nametables[0][temp] = data;
-                } else if (isInRange(address, 0x0400, 0x07FF)) {
+                }
+                if (isInRange(address, 0x0400, 0x07FF)) {
                     this.nametables[1][temp] = data;
-                } else if (isInRange(address, 0x0800, 0x0BFF)) {
+                }
+                if (isInRange(address, 0x0800, 0x0BFF)) {
                     this.nametables[0][temp] = data
-                } else if (isInRange(address, 0x0C00, 0x0FFF)) {
+                }
+                if (isInRange(address, 0x0C00, 0x0FFF)) {
                     this.nametables[1][temp] = data;
                 }
 
             } else if (mirroring === Mirroring.HORIZONTAL) {
                 if (isInRange(address, 0x0000, 0x03FF)) {
                     this.nametables[0][temp] = data;
-                } else if (isInRange(address, 0x0400, 0x07FF)) {
+                }
+                if (isInRange(address, 0x0400, 0x07FF)) {
                     this.nametables[0][temp] = data;
-                } else if (isInRange(address, 0x0800, 0x0BFF)) {
+                }
+                if (isInRange(address, 0x0800, 0x0BFF)) {
                     this.nametables[1][temp] = data;
-                } else if (isInRange(address, 0x0C00, 0x0FFF)) {
+                }
+                if (isInRange(address, 0x0C00, 0x0FFF)) {
                     this.nametables[1][temp] = data;
                 }
             }
@@ -533,33 +589,110 @@ export default class PPU {
             // palette RAM and mirrors of palette
             address &= 0x001F;
             if (address === 0x0010) address = 0x0000;
-            else if (address === 0x0014) address = 0x0004;
-            else if (address === 0x0018) address = 0x0008;
-            else if (address === 0x001C) address = 0x000C;
+            if (address === 0x0014) address = 0x0004;
+            if (address === 0x0018) address = 0x0008;
+            if (address === 0x001C) address = 0x000C;
             this.paletteTable[address] = data;
         }
     }
 
     public clock(): void {
-        // hooo booooi
+        // functions for wrapping around
+        /**
+         * Coarse X increment
+         */
         const incrScrollX = (): void => {
-            // hah
+            if (this.PPUMASK.getBit(PPUMASKFlag.b) || this.PPUMASK.getBit(PPUMASKFlag.s)) {
+                if (this.vReg.getBits(IR.coarseX) === 31) {
+                    this.vReg.storeBits(0, IR.coarseX);
+                    // there's no real pretty way of doing this
+                    const temp = this.vReg.getBit(IR.nametableX.pos);
+                    this.vReg.storeBit(IR.nametableX.pos, ~temp);
+                } else {
+                    const temp = this.vReg.getBits(IR.coarseX);
+                    this.vReg.storeBits(temp + 1, IR.coarseX);
+                }
+            }
         }
 
+        /**
+         * Coarse Y increment
+         */
         const incrScrollY = (): void => {
-            // hah
+            if (this.PPUMASK.getBit(PPUMASKFlag.b) || this.PPUMASK.getBit(PPUMASKFlag.s)) {
+                if (this.vReg.getBits(IR.fineY) < 7) {
+                    const temp = this.vReg.getBits(IR.fineY);
+                    this.vReg.storeBits(temp + 1, IR.fineY);
+                } else {
+                    this.vReg.storeBits(0, IR.fineY);
+                    const y = this.vReg.getBits(IR.coarseY);
+                    if (y === 29) {
+                        this.vReg.storeBits(0, IR.coarseY);
+
+                        const temp = this.vReg.getBit(IR.nametableY.pos);
+                        this.vReg.storeBit(IR.nametableY.pos, ~temp);
+                    } else if (y === 31) {
+                        this.vReg.storeBits(0, IR.coarseY);
+                    } else {
+                        // const temp = this.vReg.getBits(IR.coarseY);
+                        this.vReg.storeBits(y + 1, IR.coarseY);
+                    }
+                }
+            }
         }
 
+        /**
+         * At dot 257 of each scanline PPU copies all bits related to horizontal
+         * position from t to v
+         * 
+         * NOTE: this is done only if rendering is enabled
+         */
         const transferAddrX = (): void => {
-            // huh
+            if (this.PPUMASK.getBit(PPUMASKFlag.b) || this.PPUMASK.getBit(PPUMASKFlag.s)) {
+                const
+                    tempCoarseX    = this.tReg.getBits(IR.coarseX),
+                    tempNametableX = this.tReg.getBits(IR.nametableX);
+    
+                this.vReg.storeBits(tempCoarseX, IR.coarseX);
+                this.vReg.storeBits(tempNametableX, IR.nametableX);
+            }
         }
 
-        const loadBckgShifters = (): void => {
-            // hoh
+        /**
+         * During dots 280 to 304 of the pre-render scanline
+         * PPU copies vertical-related bits from t to v
+         * 
+         * NOTE: this is done only if rendering is enabled
+         */
+        const trnasferAddrY = (): void => {
+            if (this.PPUMASK.getBit(PPUMASKFlag.b) || this.PPUMASK.getBit(PPUMASKFlag.s)) {
+                const
+                    tempCoarseY    = this.tReg.getBits(IR.coarseY),
+                    tempFineY      = this.tReg.getBits(IR.fineY),
+                    tempNametableY = this.tReg.getBits(IR.nametableY);
+    
+                this.vReg.storeBits(tempCoarseY, IR.coarseY);
+                this.vReg.storeBits(tempFineY, IR.fineY);
+                this.vReg.storeBits(tempNametableY, IR.nametableY);
+            }
         }
 
-        const updateShifters = (): void => {
-            // heh
+        const loadBckgShiftReg = (): void => {
+            this.shiftPatternLow.setRegister((this.shiftPatternLow.getValue & 0xFF00) | this.tileLSB);
+            this.shiftPatternHigh.setRegister((this.shiftPatternHigh.getValue & 0xFF00) | this.tileMSB);
+        
+            this.shiftAttribLow.setRegister((this.shiftPatternLow.getValue & 0xFF00) | ((this.tileAttr & 0b01) ? 0xFF : 0x00));
+            this.shiftAttribHigh.setRegister((this.shiftAttribHigh.getValue & 0xFF00) | ((this.tileAttr & 0b01) ? 0xFF : 0x00));
+        }
+
+        const updateShiftReg = (): void => {
+            if (this.PPUMASK.getBit(PPUMASKFlag.b)) {
+                this.shiftPatternLow.shiftLeft();
+                this.shiftPatternHigh.shiftLeft();
+
+                this.shiftAttribLow.shiftLeft();
+                this.shiftAttribHigh.shiftLeft();
+            }
         }
 
         if (this.scanline >= -1 && this.scanline < 240) {
@@ -572,7 +705,78 @@ export default class PPU {
                 this.PPUSTATUS.clearBit(PPUSTATUSFlag.V);
             }
 
-            // if ()
+            if ((this.cycle >= 2 && this.cycle < 258) || (this.cycle >= 321 && this.cycle < 338)) {
+                updateShiftReg();
+
+                switch((this.cycle - 1) % 8) {
+                    case 0:
+                        loadBckgShiftReg();
+                        this.tileID = this.ppuRead(0x2000 | (this.vReg.getValue & 0x0FFF));
+                        break;
+                    case 2: {
+                        const tempNametableY = this.vReg.getBits(IR.nametableY) << 11;
+                        const tempNametableX = this.vReg.getBits(IR.nametableX) << 10;
+                        const tempCoarseX = (this.vReg.getBits(IR.coarseX) >> 2) << 3;
+                        const tempCoarseY = (this.vReg.getBits(IR.coarseY) >> 2);
+                        this.tileAttr = this.ppuRead(0x23C0 | tempNametableX | tempNametableY | tempCoarseX | tempCoarseY);
+                        
+                        if (this.vReg.getBits(IR.coarseY) & 0x02) this.tileAttr >>= 4;
+                        if (this.vReg.getBits(IR.coarseX) & 0x02) this.tileAttr >>= 2;
+                        this.tileAttr &= 0x03;
+                        break;
+                    }
+
+                    /*
+                        PPU addresses within the pattern tables can be decoded as follows:
+
+                        DCBA98 76543210
+                        ---------------
+                        0HRRRR CCCCPTTT
+                        |||||| |||||+++- T: Fine Y offset, the row number within a tile
+                        |||||| ||||+---- P: Bit plane (0: "lower"; 1: "upper")
+                        |||||| ++++----- C: Tile column
+                        ||++++---------- R: Tile row
+                        |+-------------- H: Half of sprite table (0: "left"; 1: "right")
+                        +--------------- 0: Pattern table is at $0000-$1FFF
+                    */
+                    case 4: {
+                        const patternTableIndex = this.PPUCTRL.getBit(PPUCTRLFlag.bckgTableAddr);
+                        this.tileLSB = this.ppuRead((patternTableIndex << 12) 
+                                                    + (this.tileID << 4) 
+                                                    + this.vReg.getBits(IR.fineY)
+                                                    + 8);
+                        break;
+                    }
+                    case 6: {
+                        const patternTableIndex = this.PPUCTRL.getBit(PPUCTRLFlag.bckgTableAddr);
+                        this.tileMSB = this.ppuRead((patternTableIndex << 12) 
+                                                    + (this.tileID << 4) 
+                                                    + this.vReg.getBits(IR.fineY));
+                        break;
+                    }
+                    case 7:
+                        incrScrollX();
+                        break;
+                }
+            }
+
+            if (this.cycle === 256) {
+                incrScrollY();
+            }
+
+            if (this.cycle === 257) {
+                loadBckgShiftReg();
+                transferAddrX();
+            }
+
+            // ppu reads nametable data here. twice. why? only god knows
+            if (this.cycle === 338 || this.cycle === 340) {
+                this.tileID = this.ppuRead(0x2000 | this.vReg.getValue & 0x0FFF);
+            }
+
+            if (this.scanline === -1 && this.cycle >= 280 && this.cycle < 305) {
+                trnasferAddrY();
+            }
         }
 
         if (this.scanline >= 241 && this.scanline < 261) {
@@ -584,17 +788,27 @@ export default class PPU {
             }
         }
 
-        let bckgPalette, bckgPixel;
+        let 
+            bckgPalette = 0x00, 
+            bckgPixel   = 0x00;
 
         if (this.PPUMASK.getBit(PPUMASKFlag.b)) {
-            const bit = 0x8000 >> this.fineX;
+            const bitMux = 0x8000 >> this.fineX;
 
-            // magic
+            const p0 = ((this.shiftPatternLow.getValue  & bitMux) > 0) ? 0x01 : 0x00;
+            const p1 = ((this.shiftPatternHigh.getValue & bitMux) > 0) ? 0x01 : 0x00;
+
+            bckgPixel = (p1 << 1) | p0;
+
+            const palette0 = ((this.shiftAttribLow.getValue  & bitMux) > 0) ? 0x01 : 0x00;
+            const palette1 = ((this.shiftAttribHigh.getValue & bitMux) > 0) ? 0x01 : 0x00;
+
+            bckgPalette = (palette1 << 1) | palette0;
         }
 
         // sweet noise
-        this.display.drawPixel(this.cycle - 1, this.scanline, this.palette[fastRounding(Math.random()) ? 0x3F : 0x30]);
-        // this.display.drawPixel(this.cycle - 1, this.scanline, this.getColor(bckgPalette, bckgPixel));
+        // this.display.drawPixel(this.cycle - 1, this.scanline, this.palette[fastRounding(Math.random()) ? 0x3F : 0x30]);
+        this.display.drawPixel(this.cycle - 1, this.scanline, this.getColor(bckgPalette, bckgPixel));
 
         this.cycle++;
         if (this.cycle >= 341) {

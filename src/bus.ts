@@ -38,6 +38,11 @@ export default class Bus {
     public connectDisplay(display: Display): void {
         this.ppu.connectDisplay(display);
     }
+    
+    public reset(): void {
+        this.cpu.reset();
+        this.ppu.reset();
+    }
 
     /**
      * Loads a given chunk of data into {@link cpuRAM RAM}
@@ -132,7 +137,8 @@ export default class Bus {
     public clock(): void {
         this.ppu.clock();
 
-        // ppu does 3 dots, whatever that means
+        // ppu does 3 dots per cpu cycle
+        // https://wiki.nesdev.com/w/index.php?title=Cycle_reference_chart
         if (this.systemClock % 3 === 0) this.cpu.clock();
 
         if (this.ppu.nmi) {

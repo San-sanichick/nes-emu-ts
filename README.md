@@ -1,4 +1,4 @@
-# new emu
+# nes emulator
 
 This is just a little project, where I try to figure out
 how NES hardware worked, just because I can.
