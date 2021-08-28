@@ -2,15 +2,18 @@
 // It has the same sandbox as a Chrome extension.
 import { readFileSync } from "original-fs";
 import Bus from "./bus";
-import Register from "./pus/register";
+import CPU from "./pus/cpu";
 // import Pad from "./pad";
 import ROM from "./rom/rom";
+import DebugDisplay from "./utils/debugDisplay";
 import Display from "./utils/display";
 import { fastRounding } from "./utils/utils";
 
 window.addEventListener("DOMContentLoaded", () => {
     const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
     const fpsDisplay = document.querySelector(".fps") as HTMLParagraphElement;
+    const debugCanvas = document.querySelector("#debug-display") as HTMLCanvasElement;
+    const debugDisplay = new DebugDisplay(debugCanvas, 300, 500);
 
     const runBtn        = document.querySelector(".run-btn") as HTMLButtonElement;
     const pauseBtn      = document.querySelector(".pause-btn") as HTMLButtonElement;
@@ -22,10 +25,9 @@ window.addEventListener("DOMContentLoaded", () => {
     bus.connectRom(rom);
     bus.connectDisplay(display);
     let run: boolean = false;
-
+    const asm = CPU.parseMemory(bus.getCPU, 0x0000, 0xFFFF);
     bus.reset();
-
-    // let reqID: number = 0;
+    debugDisplay.drawRam(asm, bus.getCPU.getPC, 50);
 
     const update = (): void => {
         const t = performance.now();
@@ -33,6 +35,8 @@ window.addEventListener("DOMContentLoaded", () => {
         do {
             bus.clock();
         } while (!bus.ppu.frameComplete);
+
+        debugDisplay.drawRam(asm, bus.getCPU.getPC, 50);
 
         const tComplete = performance.now() - t;
         fpsDisplay.textContent = `${(1000 / fastRounding(tComplete)).toFixed(0)} fps`;

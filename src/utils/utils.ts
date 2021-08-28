@@ -2,6 +2,10 @@ export function to8bitBinary(num: number): string {
     return ("00000000" + num.toString(2)).slice(-8);
 }
 
+export function toHex(num: number, padding: number): string {
+    return "0x" + num.toString(16).padStart(padding).toUpperCase();
+}
+
 export function isInRange(val: number, start: number, end: number): boolean {
     return val >= start && val <= end;
 }

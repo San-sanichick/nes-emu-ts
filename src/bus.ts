@@ -63,72 +63,96 @@ export default class Bus {
     }
 
     public write(address: number, val: number): void {
+        // cartridge
+        if (this.rom.cpuWrite(address, val)) {
+            // be happy
+        }
         // 2KB internal RAM
         // 0x0800-0x0FFF, 
         // 0x1000-0x17FF and 0x1800-0x1FFF mirror 0x0000-0x07FF
-        if (isInRange(address, 0x0000, 0x1FFF)) {
+        else if (isInRange(address, 0x0000, 0x1FFF)) {
             this.cpuRAM[address & 0x07FF] = val;
         }
 
         // PPU registers
         // Mirrors of 0x2000-0x2007 (repeats every 8 bytes) 
-        if (isInRange(address, 0x2000, 0x3FFF)) {
+        else if (isInRange(address, 0x2000, 0x3FFF)) {
             // val = 1;
             this.ppu.cpuWrite(address & 0x0007, val)
         }
 
         // NES APU and I/O registers
-        if (isInRange(address, 0x4000, 0x4017)) {
+        else if (isInRange(address, 0x4000, 0x4017)) {
             // val = 3;
         }
 
         // APU and I/O functionality that is normally disabled
-        if (isInRange(address, 0x4018, 0x401F)) {
+        else if (isInRange(address, 0x4018, 0x401F)) {
             // val = 4;
-        }
-
-        // Cartridge space
-        // if (isInRange(address, 0x4020, 0xFFFF)) {
-        //     // lolwut??????
-        //     this.rom.cpuWrite(address, val);
-        // }
-        if (this.rom.cpuWrite(address, val)) {
-            // be happy
-        }
+        }        
     }
 
     public read(address: number): number {
         let val = 0x00;
 
+        // cartridge
+        const temp = this.rom.cpuRead(address);
+        if (temp !== null) {
+            val = temp;
+        }
         // 2KB internal RAM
         // 0x0800-0x0FFF, 0x1000-0x17FF and 0x1800-0x1FFF mirror 0x0000-0x07FF
-        if (isInRange(address, 0x0000, 0x1FFF)) {
+        else if (isInRange(address, 0x0000, 0x1FFF)) {
             val = this.cpuRAM[address & 0x07FF];
         }
 
         // PPU registers
         // Mirrors of 0x2000-0x2007 (repeats every 8 bytes) 
-        if (isInRange(address, 0x2000, 0x3FFF)) {
+        else if (isInRange(address, 0x2000, 0x3FFF)) {
             this.ppu.cpuRead(address & 0x0007);
         }
 
         // NES APU and I/O registers
-        if (isInRange(address, 0x4000, 0x4017)) {
+        else if (isInRange(address, 0x4000, 0x4017)) {
             //
         }
 
         // APU and I/O functionality that is normally disabled
-        if (isInRange(address, 0x4018, 0x401F)) {
+        else if (isInRange(address, 0x4018, 0x401F)) {
             //
         }
 
-        // Cartridge space
-        // if (isInRange(address, 0x4020, 0xFFFF)) {
-        //     val = this.rom.cpuRead(address);
-        // }
+        return val;
+    }
+
+    public debugRead(address: number): number {
+        let val = 0x00;
+
+        // cartridge
         const temp = this.rom.cpuRead(address);
-        if (temp) {
+        if (temp !== null) {
             val = temp;
+        }
+        // 2KB internal RAM
+        // 0x0800-0x0FFF, 0x1000-0x17FF and 0x1800-0x1FFF mirror 0x0000-0x07FF
+        else if (isInRange(address, 0x0000, 0x1FFF)) {
+            val = this.cpuRAM[address & 0x07FF];
+        }
+
+        // PPU registers
+        // Mirrors of 0x2000-0x2007 (repeats every 8 bytes) 
+        else if (isInRange(address, 0x2000, 0x3FFF)) {
+            this.ppu.debugRead(address & 0x0007);
+        }
+
+        // NES APU and I/O registers
+        else if (isInRange(address, 0x4000, 0x4017)) {
+            //
+        }
+
+        // APU and I/O functionality that is normally disabled
+        else if (isInRange(address, 0x4018, 0x401F)) {
+            //
         }
 
         return val;

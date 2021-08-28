@@ -1,4 +1,4 @@
-import { fastRounding, isInRange } from "../utils/utils";
+import { isInRange } from "../utils/utils";
 import Display, { Pixel, Sprite } from "../utils/display";
 import Register from "./register";
 import ROM from "../rom/rom";
@@ -240,7 +240,7 @@ export default class PPU {
             this.patternTable[i] = new Uint8Array(4096);
         }
 
-        this.PPUSTATUS.setRegister(0x80);
+        this.PPUSTATUS.setReg(0x80);
 
         this.display = null;
         this.rom     = null;
@@ -251,21 +251,21 @@ export default class PPU {
        this.scanline = 0;
        this.w = 0x00;
        this.fineX = 0x00;
-       this.PPUDATA.setRegister(0x00);
-       this.PPUSTATUS.setRegister(0x00);
-       this.PPUMASK.setRegister(0x00);
-       this.PPUCTRL.setRegister(0x00);
-       this.vReg.setRegister(0x0000);
-       this.tReg.setRegister(0x0000);
+       this.PPUDATA.setReg(0x00);
+       this.PPUSTATUS.setReg(0x00);
+       this.PPUMASK.setReg(0x00);
+       this.PPUCTRL.setReg(0x00);
+       this.vReg.setReg(0x0000);
+       this.tReg.setReg(0x0000);
 
        this.tileID = 0x00;
        this.tileAttr = 0x00;
        this.tileMSB = 0x00;
        this.tileLSB = 0x00;
-       this.shiftPatternLow.setRegister(0x0000);
-       this.shiftPatternHigh.setRegister(0x0000);
-       this.shiftAttribLow.setRegister(0x0000);
-       this.shiftAttribHigh.setRegister(0x0000);
+       this.shiftPatternLow.setReg(0x0000);
+       this.shiftPatternHigh.setReg(0x0000);
+       this.shiftAttribLow.setReg(0x0000);
+       this.shiftAttribHigh.setReg(0x0000);
     }
 
     private getPatternTable(patternTableIndex: number, palette: number): Sprite {
@@ -388,7 +388,7 @@ export default class PPU {
             case 0x0007: {
                 // read
                 data = this.PPUDATA.getValue;
-                this.PPUDATA.setRegister(this.ppuRead(this.vReg.getValue));
+                this.PPUDATA.setReg(this.ppuRead(this.vReg.getValue));
 
                 if (isInRange(address, 0x3F00, 0x3FFF)) {
                     data = this.PPUDATA.getValue;
@@ -408,7 +408,7 @@ export default class PPU {
             // PPUCTRL write only
             case 0x0000:
                 // write
-                this.PPUCTRL.setRegister(val);
+                this.PPUCTRL.setReg(val);
 
                 this.tReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableX), IR.nametableX);
                 this.tReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableY), IR.nametableY)
@@ -416,7 +416,7 @@ export default class PPU {
             // write only
             case 0x0001:
                 // write
-                this.PPUMASK.setRegister(val);
+                this.PPUMASK.setReg(val);
                 break;
             // read only
             case 0x0002: break;
@@ -450,13 +450,13 @@ export default class PPU {
                 if (this.w === 0) {
                     // this.internalTReg.storeBits(val & 0x3F, 8, 6);
                     // ! in case upper doesn't work
-                    this.tReg.setRegister((val & 0x3F) << 8 | this.tReg.getValue & 0x00FF);
+                    this.tReg.setReg((val & 0x3F) << 8 | this.tReg.getValue & 0x00FF);
                     this.tReg.clearBit(15);
 
                     this.w = 1;
                 } else if (this.w === 1) { // write again
-                    this.tReg.setRegister(this.tReg.getValue & 0xFF00 | val);
-                    this.vReg.setRegister(this.tReg.getValue);
+                    this.tReg.setReg(this.tReg.getValue & 0xFF00 | val);
+                    this.vReg.setReg(this.tReg.getValue);
 
                     this.w = 0;
                 }
@@ -479,7 +479,9 @@ export default class PPU {
         address &= 0x3FFF;
 
         const temp = this.rom.ppuRead(address);
-        if (temp) {
+        // console.log(address.toString(16));
+        if (temp !== null) {
+            // console.log(temp.toString(16));
             data = temp;
         } else if (isInRange(address, 0x0000, 0x0FFF)) {
             // pattern table 1
@@ -678,11 +680,11 @@ export default class PPU {
         }
 
         const loadBckgShiftReg = (): void => {
-            this.shiftPatternLow.setRegister((this.shiftPatternLow.getValue & 0xFF00) | this.tileLSB);
-            this.shiftPatternHigh.setRegister((this.shiftPatternHigh.getValue & 0xFF00) | this.tileMSB);
+            this.shiftPatternLow.setReg((this.shiftPatternLow.getValue & 0xFF00) | this.tileLSB);
+            this.shiftPatternHigh.setReg((this.shiftPatternHigh.getValue & 0xFF00) | this.tileMSB);
         
-            this.shiftAttribLow.setRegister((this.shiftPatternLow.getValue & 0xFF00) | ((this.tileAttr & 0b01) ? 0xFF : 0x00));
-            this.shiftAttribHigh.setRegister((this.shiftAttribHigh.getValue & 0xFF00) | ((this.tileAttr & 0b01) ? 0xFF : 0x00));
+            this.shiftAttribLow.setReg((this.shiftPatternLow.getValue & 0xFF00) | ((this.tileAttr & 0b01) ? 0xFF : 0x00));
+            this.shiftAttribHigh.setReg((this.shiftAttribHigh.getValue & 0xFF00) | ((this.tileAttr & 0b01) ? 0xFF : 0x00));
         }
 
         const updateShiftReg = (): void => {
@@ -716,8 +718,8 @@ export default class PPU {
                     case 2: {
                         const tempNametableY = this.vReg.getBits(IR.nametableY) << 11;
                         const tempNametableX = this.vReg.getBits(IR.nametableX) << 10;
-                        const tempCoarseX = (this.vReg.getBits(IR.coarseX) >> 2) << 3;
-                        const tempCoarseY = (this.vReg.getBits(IR.coarseY) >> 2);
+                        const tempCoarseY = (this.vReg.getBits(IR.coarseY) >> 2) << 3;
+                        const tempCoarseX = (this.vReg.getBits(IR.coarseX) >> 2);
                         this.tileAttr = this.ppuRead(0x23C0 | tempNametableX | tempNametableY | tempCoarseX | tempCoarseY);
                         
                         if (this.vReg.getBits(IR.coarseY) & 0x02) this.tileAttr >>= 4;
@@ -744,14 +746,15 @@ export default class PPU {
                         this.tileLSB = this.ppuRead((patternTableIndex << 12) 
                                                     + (this.tileID << 4) 
                                                     + this.vReg.getBits(IR.fineY)
-                                                    + 8);
+                                                    + 0);
                         break;
                     }
                     case 6: {
                         const patternTableIndex = this.PPUCTRL.getBit(PPUCTRLFlag.bckgTableAddr);
                         this.tileMSB = this.ppuRead((patternTableIndex << 12) 
                                                     + (this.tileID << 4) 
-                                                    + this.vReg.getBits(IR.fineY));
+                                                    + this.vReg.getBits(IR.fineY)
+                                                    + 8);
                         break;
                     }
                     case 7:
@@ -780,11 +783,13 @@ export default class PPU {
         }
 
         if (this.scanline >= 241 && this.scanline < 261) {
-            // we enter the blanking interval
-            this.PPUSTATUS.setBit(PPUSTATUSFlag.V);
+            if (this.scanline == 241 && this.cycle == 1) {
+                // we enter the blanking interval
+                this.PPUSTATUS.setBit(PPUSTATUSFlag.V);
 
-            if (this.PPUCTRL.getBit(PPUCTRLFlag.genNMI)) {
-                this.nmi = true;
+                if (this.PPUCTRL.getBit(PPUCTRLFlag.genNMI)) {
+                    this.nmi = true;
+                }
             }
         }
 
@@ -795,6 +800,7 @@ export default class PPU {
         if (this.PPUMASK.getBit(PPUMASKFlag.b)) {
             const bitMux = 0x8000 >> this.fineX;
 
+            // I could just convert it into a number, but I don't trust JS at all
             const p0 = ((this.shiftPatternLow.getValue  & bitMux) > 0) ? 0x01 : 0x00;
             const p1 = ((this.shiftPatternHigh.getValue & bitMux) > 0) ? 0x01 : 0x00;
 

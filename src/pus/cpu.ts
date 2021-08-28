@@ -1,6 +1,6 @@
 import Bus from "../bus";
 import Register from "./register";
-import { to8bitBinary } from "../utils/utils";
+import { to8bitBinary, toHex } from "../utils/utils";
 
 /**
  * 7         6         5-4         3        2                  1     0
@@ -101,7 +101,7 @@ export default class CPU {
         this.IRX = new Register<Uint8Array>(Uint8Array);
         this.IRY = new Register<Uint8Array>(Uint8Array);
         this.PS  = new Register<Uint8Array>(Uint8Array);
-        this.PS.setRegister(0x36);
+        this.PS.setReg(0x36);
         this.bus = null;
         
         // javascript is garbage
@@ -437,8 +437,8 @@ export default class CPU {
         ];
     }
 
-    get getPC(): string {
-        return "0x" + (this.PC.getValue.toString(16).toUpperCase().padStart(4, "0"));
+    get getPC(): number {
+        return this.PC.getValue;
     }
 
     get getSP(): string {
@@ -653,6 +653,7 @@ export default class CPU {
     }
 
     public clock(): void {
+        // console.log(this.cycles);
         if (this.cycles === 0) {
             this.opcode = this.fetchNextOpcode();
             const operation = this.operations[this.opcode];
@@ -703,7 +704,7 @@ export default class CPU {
         const low  = this.bus.read(this.absAddress);
         const high = this.bus.read(this.absAddress + 1); // 0xFFFB
 
-        this.PC.setRegister((high << 8) | low);
+        this.PC.setReg((high << 8) | low);
 
         this.cycles = 8;
     }
@@ -733,7 +734,7 @@ export default class CPU {
             const low  = this.bus.read(this.absAddress);
             const high = this.bus.read(this.absAddress + 1); // 0xFFFF
 
-            this.PC.setRegister((high << 8) | low);
+            this.PC.setReg((high << 8) | low);
 
             this.cycles = 7;
         }
@@ -742,16 +743,17 @@ export default class CPU {
     // ! If Reset doesn't work correctly, this is why
     public reset(): void {
         this.absAddress = 0xFFFC;
-        const low  = this.bus.read(this.absAddress);
+        const low  = this.bus.read(this.absAddress + 0);
         const high = this.bus.read(this.absAddress + 1); // 0xFFFD
-        this.PC.setRegister((high << 8) | low);
+        this.PC.setReg((high << 8) | low);
+        console.log("reset PC: " + toHex(this.PC.getValue, 4));
 
-        this.ACC.setRegister(0x00);
-        this.IRX.setRegister(0x00);
-        this.IRY.setRegister(0x00);
+        this.ACC.setReg(0x00);
+        this.IRX.setReg(0x00);
+        this.IRY.setReg(0x00);
 
-        this.SP.setRegister(0xFD);
-        this.PS.setRegister(0x00);
+        this.SP.setReg(0xFD);
+        this.PS.setReg(0x00);
 
         // this.PS.setBit(StatusFlag.INT_D);
         this.absAddress = 0x0000;
@@ -803,7 +805,7 @@ export default class CPU {
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0));
         this.PS.storeBit(StatusFlag.V, (~(this.ACC.getValue ^ this.fetched) & (this.ACC.getValue ^ temp) & 0x0080));
 
-        this.ACC.setRegister(temp & 0x00FF);
+        this.ACC.setReg(temp & 0x00FF);
 
         return 1;
     }
@@ -814,7 +816,7 @@ export default class CPU {
     private AND(): number {
         this.fetched = this.loadFromMemory();
         const temp = this.ACC.getValue & this.fetched;
-        this.ACC.setRegister(temp);
+        this.ACC.setReg(temp);
 
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
         this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
@@ -833,7 +835,7 @@ export default class CPU {
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0));
 
         if (this.operations[this.opcode].addrMode === AddressingMode.IMM) {
-            this.ACC.setRegister(temp);
+            this.ACC.setReg(temp);
         } else {
             this.bus.write(this.absAddress, temp & 0x00FF);
         }
@@ -853,7 +855,7 @@ export default class CPU {
                 this.cycles++;
             }
 
-            this.PC.setRegister(this.absAddress);
+            this.PC.setReg(this.absAddress);
         }
         return 0;
     }
@@ -870,7 +872,7 @@ export default class CPU {
                 this.cycles++;
             }
 
-            this.PC.setRegister(this.absAddress);
+            this.PC.setReg(this.absAddress);
         }
         return 0;
     }
@@ -887,7 +889,7 @@ export default class CPU {
                 this.cycles++;
             }
 
-            this.PC.setRegister(this.absAddress);
+            this.PC.setReg(this.absAddress);
         }
         return 0;
     }
@@ -923,7 +925,7 @@ export default class CPU {
                 this.cycles++;
             }
 
-            this.PC.setRegister(this.absAddress);
+            this.PC.setReg(this.absAddress);
         }
 
         return 0;
@@ -941,7 +943,7 @@ export default class CPU {
                 this.cycles++;
             }
 
-            this.PC.setRegister(this.absAddress);
+            this.PC.setReg(this.absAddress);
         }
         return 0;
     }
@@ -958,7 +960,7 @@ export default class CPU {
                 this.cycles++;
             }
 
-            this.PC.setRegister(this.absAddress);
+            this.PC.setReg(this.absAddress);
         }
         return 0;
     }
@@ -981,7 +983,8 @@ export default class CPU {
         const low  = this.bus.read(0xFFFE);
         const high = this.bus.read(0xFFFF);
         
-        this.PC.setRegister((high << 8) | low);
+        this.PC.setReg(low | (high << 8));
+        console.log(high, low, this.PC.getValue);
         return 0;
     }
 
@@ -997,7 +1000,7 @@ export default class CPU {
                 this.cycles++;
             }
 
-            this.PC.setRegister(this.absAddress);
+            this.PC.setReg(this.absAddress);
         }
 
         return 0;
@@ -1016,7 +1019,7 @@ export default class CPU {
                 this.cycles++;
             }
 
-            this.PC.setRegister(this.absAddress);
+            this.PC.setReg(this.absAddress);
         }
         return 0;
     }
@@ -1134,7 +1137,7 @@ export default class CPU {
     private EOR(): number {
         this.fetched = this.loadFromMemory();
         const temp = this.ACC.getValue ^ this.fetched;
-        this.ACC.setRegister(temp);
+        this.ACC.setReg(temp);
 
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
         this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
@@ -1180,7 +1183,7 @@ export default class CPU {
      * Jump
      */
     private JMP(): number {
-        this.PC.setRegister(this.absAddress);
+        this.PC.setReg(this.absAddress);
         return 0;
     }
 
@@ -1192,7 +1195,7 @@ export default class CPU {
         this.writeToStack((this.PC.getValue >> 8) & 0x00FF);
         this.writeToStack(this.PC.getValue & 0x00FF);
 
-        this.PC.setRegister(this.absAddress);
+        this.PC.setReg(this.absAddress);
         return 0;
     }
 
@@ -1200,7 +1203,7 @@ export default class CPU {
      * Load accumulator
      */
     private LDA(): number {
-        this.ACC.setRegister(this.loadFromMemory());
+        this.ACC.setReg(this.loadFromMemory());
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
         this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
         return 1;
@@ -1210,7 +1213,7 @@ export default class CPU {
      * Load X
      */
     private LDX(): number {
-        this.IRX.setRegister(this.loadFromMemory());
+        this.IRX.setReg(this.loadFromMemory());
         this.PS.storeBit(StatusFlag.Z, +(this.IRX.getValue === 0x00));
         this.PS.storeBit(StatusFlag.N, +(this.IRX.getValue & 0x80));
         return 1;
@@ -1220,7 +1223,7 @@ export default class CPU {
      * Load Y
      */
     private LDY(): number {
-        this.IRY.setRegister(this.loadFromMemory());
+        this.IRY.setReg(this.loadFromMemory());
         this.PS.storeBit(StatusFlag.Z, +(this.IRY.getValue === 0x00));
         this.PS.storeBit(StatusFlag.N, +(this.IRY.getValue & 0x80));
         return 1;
@@ -1238,7 +1241,7 @@ export default class CPU {
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0x0000));
 
         if (this.operations[this.opcode].addrMode === AddressingMode.IMM) {
-            this.ACC.setRegister(temp);
+            this.ACC.setReg(temp);
         } else {
             this.bus.write(this.absAddress, temp & 0x00FF);
         }
@@ -1268,7 +1271,7 @@ export default class CPU {
     private ORA(): number {
         this.fetched = this.loadFromMemory();
         const temp = this.ACC.getValue | this.fetched;
-        this.ACC.setRegister(temp);
+        this.ACC.setReg(temp);
 
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
         this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
@@ -1300,7 +1303,7 @@ export default class CPU {
      */
     private PLA(): number {
         this.SP.incr();
-        this.ACC.setRegister(this.bus.read(0x0100 + this.SP.getValue));
+        this.ACC.setReg(this.bus.read(0x0100 + this.SP.getValue));
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
         this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
         return 0;
@@ -1311,7 +1314,7 @@ export default class CPU {
      */
     private PLP(): number {
         this.SP.incr();
-        this.PS.setRegister(this.bus.read(0x0100 + this.SP.getValue));
+        this.PS.setReg(this.bus.read(0x0100 + this.SP.getValue));
         this.SP.setBit(5);
         return 0;
     }
@@ -1329,7 +1332,7 @@ export default class CPU {
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0x0000));
 
         if (this.operations[this.opcode].addrMode === AddressingMode.IMM) {
-            this.ACC.setRegister(temp & 0x00FF);
+            this.ACC.setReg(temp & 0x00FF);
         } else {
             this.bus.write(this.absAddress, temp & 0x00FF);
         }
@@ -1351,7 +1354,7 @@ export default class CPU {
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0x00));
 
         if (this.operations[this.opcode].addrMode === AddressingMode.IMM) {
-            this.ACC.setRegister(temp & 0x00FF);
+            this.ACC.setReg(temp & 0x00FF);
         } else {
             this.bus.write(this.absAddress, temp & 0x00FF);
         }
@@ -1363,13 +1366,13 @@ export default class CPU {
      * Return from interrupt
      */
     private RTI(): number {
-        this.PS.setRegister(this.readFromStack());
+        this.PS.setReg(this.readFromStack());
         this.PS.clearBit(StatusFlag.B);
 
         const low  = this.readFromStack();
         const high = this.readFromStack();
 
-        this.PC.setRegister((high << 8) | low);
+        this.PC.setReg((high << 8) | low);
         return 0;
     }
 
@@ -1380,7 +1383,7 @@ export default class CPU {
         const low  = this.readFromStack();
         const high = this.readFromStack();
 
-        this.PC.setRegister((high << 8) | low);
+        this.PC.setReg((high << 8) | low);
         this.PC.incr();
         return 0;
     }
@@ -1400,7 +1403,7 @@ export default class CPU {
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0));
         this.PS.storeBit(StatusFlag.V, ((this.ACC.getValue ^ this.fetched) & (this.ACC.getValue ^ temp) & 0x0080));
 
-        this.ACC.setRegister(temp & 0x00FF);
+        this.ACC.setReg(temp & 0x00FF);
         return 1;
     }
 
@@ -1456,7 +1459,7 @@ export default class CPU {
      * Transfer accumulator to X
      */
     private TAX(): number {
-        this.IRX.setRegister(this.ACC.getValue);
+        this.IRX.setReg(this.ACC.getValue);
         this.PS.storeBit(StatusFlag.Z, +(this.IRX.getValue === 0x00));
         this.PS.storeBit(StatusFlag.N, +(this.IRX.getValue & 0x80)); // check if 8th bit is 1
         return 0;
@@ -1466,7 +1469,7 @@ export default class CPU {
      * Transfer accumulator to Y
      */
     private TAY(): number {
-        this.IRY.setRegister(this.ACC.getValue);
+        this.IRY.setReg(this.ACC.getValue);
         this.PS.storeBit(StatusFlag.Z, +(this.IRY.getValue === 0x00));
         this.PS.storeBit(StatusFlag.N, +(this.IRY.getValue & 0x80));
         return 0;
@@ -1476,7 +1479,7 @@ export default class CPU {
      * Transfer stack pointer to X
      */
     private TSX(): number {
-        this.IRX.setRegister(this.SP.getValue);
+        this.IRX.setReg(this.SP.getValue);
         this.PS.storeBit(StatusFlag.Z, +(this.IRX.getValue === 0x00));
         this.PS.storeBit(StatusFlag.N, +(this.IRX.getValue & 0x80));
         return 0;
@@ -1486,7 +1489,7 @@ export default class CPU {
      * Transfer X to accumulator
      */
     private TXA(): number {
-        this.ACC.setRegister(this.IRX.getValue);
+        this.ACC.setReg(this.IRX.getValue);
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
         this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
         return 0;
@@ -1496,7 +1499,7 @@ export default class CPU {
      * Transfer X to stack pointer
      */
     private TXS(): number {
-        this.SP.setRegister(this.IRX.getValue);
+        this.SP.setReg(this.IRX.getValue);
         return 0;
     }
 
@@ -1504,9 +1507,114 @@ export default class CPU {
      * Transfer Y to accumulator
      */
     private TYA(): number {
-        this.ACC.setRegister(this.IRY.getValue);
+        this.ACC.setReg(this.IRY.getValue);
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
         this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
         return 0;
+    }
+
+    public static parseMemory(cpu: CPU, startAddr: number, endAddr: number): Map<number, string> {
+        const ramParsed: Map<number, string> = new Map<number, string>();
+        let address = startAddr;
+        let 
+            val = 0x00,
+            low = 0x00,
+            high = 0x00;
+
+        let line = 0;
+
+        while (address <= endAddr) {
+            line = address;
+
+            let instr = toHex(address, 4) + ": ";
+
+            const opcode = cpu.bus.debugRead(address);
+            address++;
+            const op = cpu.operations[opcode];
+            if (op == undefined) {
+                console.log(op, opcode);
+            }
+            instr += op.name + " ";
+
+            switch(op.addrMode) {
+                case AddressingMode.IMP:
+                    instr += " (IMP)";
+                    break;
+                case AddressingMode.IMM:
+                    val = cpu.bus.debugRead(address);
+                    address++;
+                    instr += toHex(val, 2) + " (IMM)";
+                    break;
+                case AddressingMode.ZP:
+                    low = cpu.bus.debugRead(address);
+                    high = 0x00;
+                    address++;
+                    instr += toHex(low, 2) + " (ZP)";
+                    break;
+                case AddressingMode.ZPI_X:
+                    low = cpu.bus.debugRead(address);
+                    high = 0x00;
+                    address++;
+                    instr += toHex(low, 2) + " (ZPI X)";
+                    break;
+                case AddressingMode.ZPI_Y:
+                    low = cpu.bus.debugRead(address);
+                    high = 0x00;
+                    address++;
+                    instr += toHex(low, 2) + " (ZPI Y)";
+                    break;
+                case AddressingMode.INDX_IND_X:
+                    low = cpu.bus.debugRead(address);
+                    high = 0x00;
+                    address++;
+                    instr += toHex(low, 2) + " (INDX IND X)";
+                    break;
+                case AddressingMode.IND_INDX_Y:
+                    low = cpu.bus.debugRead(address);
+                    high = 0x00;
+                    address++;
+                    instr += toHex(low, 2) + " (IND INDX Y)";
+                    break;
+                case AddressingMode.ABS:
+                    low = cpu.bus.debugRead(address);
+                    address++;
+                    high = cpu.bus.debugRead(address);
+                    address++;
+                    instr += toHex((high << 8) | low, 4) + " (ABS)";
+                    break;
+                case AddressingMode.ABSI_X:
+                    low = cpu.bus.debugRead(address);
+                    address++;
+                    high = cpu.bus.debugRead(address);
+                    address++;
+                    instr += toHex((high << 8) | low, 4) + " X (ABS)";
+                    break;
+                case AddressingMode.ABSI_Y:
+                    low = cpu.bus.debugRead(address);
+                    address++;
+                    high = cpu.bus.debugRead(address);
+                    address++;
+                    instr += toHex((high << 8) | low, 4) + " Y (ABS)";
+                    break;
+                case AddressingMode.IND:
+                    low = cpu.bus.debugRead(address);
+                    address++;
+                    high = cpu.bus.debugRead(address);
+                    address++;
+                    instr += toHex((high << 8) | low, 4) + " (IND)";
+                    break;
+                case AddressingMode.REL:
+                    val = cpu.bus.debugRead(address);
+                    address++;
+                    instr += `${toHex(val, 2)} [${toHex(address + val, 4)}] (REL)`;
+                    break;
+                }
+            if (instr.includes("undefined")) {
+                console.log("Text undef", instr, op, opcode);
+            }
+            ramParsed.set(line, instr);
+        }
+
+        return ramParsed;
     }
 }

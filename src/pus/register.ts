@@ -94,7 +94,7 @@ export default class Register<T extends TypedArray> {
         }
     }
 
-    public setRegister(newVal: number): void {
+    public setReg(newVal: number): void {
         this.data[0] = newVal;
     }
 

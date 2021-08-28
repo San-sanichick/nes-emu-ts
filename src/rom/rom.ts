@@ -60,10 +60,10 @@ export default class ROM {
 
         switch (this.headerData.getMapperID) {
             case 0: 
-                this.mapper = new Mapper000(PRG_ROM_SIZE, CHR_ROM_SIZE);
+                this.mapper = new Mapper000(this.headerData.getPRGROMSize, this.headerData.getCHRROMSize);
                 break;
             default:
-                this.mapper = new Mapper000(PRG_ROM_SIZE, CHR_ROM_SIZE);
+                this.mapper = new Mapper000(this.headerData.getPRGROMSize, this.headerData.getCHRROMSize);
         }
     }
 
@@ -83,7 +83,7 @@ export default class ROM {
     public cpuRead(address: number): number | null {
         const mappedAddress = this.mapper.cpuMapRead(address);
         
-        if (mappedAddress) {
+        if (mappedAddress !== null) {
             return this.PRGROMData[mappedAddress];
         } else {
             return null;
@@ -94,7 +94,7 @@ export default class ROM {
     public cpuWrite(address: number, data: number): number | null {
         const mappedAddress = this.mapper.cpuMapWrite(address);
         
-        if (mappedAddress) {
+        if (mappedAddress !== null) {
             this.PRGROMData[mappedAddress] = data;
             return 1;
         } else {
@@ -104,8 +104,9 @@ export default class ROM {
 
     public ppuRead(address: number): number | null {
         const mappedAddress = this.mapper.ppuMapRead(address);
-        
-        if (mappedAddress) {
+        // console.log(mappedAddress);
+        if (mappedAddress !== null) {
+            // console.log(`CHRROM data at ${mappedAddress}: ${this.CHRROMData[mappedAddress]}`);
             return this.CHRROMData[mappedAddress];
         } else {
             return null;
@@ -116,7 +117,7 @@ export default class ROM {
     public ppuWrite(address: number, data: number): number | null {
         const mappedAddress = this.mapper.ppuMapWrite(address);
         
-        if (mappedAddress) {
+        if (mappedAddress !== null) {
             this.CHRROMData[mappedAddress] = data;
             return 1;
         } else {
