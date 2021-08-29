@@ -13,21 +13,29 @@ window.addEventListener("DOMContentLoaded", () => {
     const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
     const fpsDisplay = document.querySelector(".fps") as HTMLParagraphElement;
     const debugCanvas = document.querySelector("#debug-display") as HTMLCanvasElement;
-    const debugDisplay = new DebugDisplay(debugCanvas, 300, 500);
+    const debugDisplay = new DebugDisplay(debugCanvas, 400, 500);
 
     const runBtn        = document.querySelector(".run-btn") as HTMLButtonElement;
     const pauseBtn      = document.querySelector(".pause-btn") as HTMLButtonElement;
     const singleStepBtn = document.querySelector(".single-step-btn") as HTMLButtonElement;
+    const resetBtn      = document.querySelector(".reset-btn") as HTMLButtonElement;
     
     const display = new Display(canvas);
     const bus     = new Bus();
-    const rom     = new ROM(readFileSync("./roms/dk.nes"));
+    const rom     = new ROM(readFileSync("./roms/nestest.nes"));
     bus.connectRom(rom);
     bus.connectDisplay(display);
     let run: boolean = false;
     const asm = CPU.parseMemory(bus.getCPU, 0x0000, 0xFFFF);
     bus.reset();
-    debugDisplay.drawRam(asm, bus.getCPU.getPC, 50);
+    
+    const drawDebug = () => {
+        debugDisplay.drawRam(asm, bus.getCPU.getPC, 15);
+        debugDisplay.drawCpuRegisters(bus.getCPU);
+        debugDisplay.drawPPURegisters(bus.ppu);
+    }
+
+    drawDebug();
 
     const update = (): void => {
         const t = performance.now();
@@ -36,7 +44,7 @@ window.addEventListener("DOMContentLoaded", () => {
             bus.clock();
         } while (!bus.ppu.frameComplete);
 
-        debugDisplay.drawRam(asm, bus.getCPU.getPC, 50);
+        drawDebug();
 
         const tComplete = performance.now() - t;
         fpsDisplay.textContent = `${(1000 / fastRounding(tComplete)).toFixed(0)} fps`;
@@ -61,6 +69,11 @@ window.addEventListener("DOMContentLoaded", () => {
 
     singleStepBtn.addEventListener("click", () => {
         update();
+    });
+
+    resetBtn.addEventListener("click", () => {
+        bus.reset();
+        drawDebug();
     });
 
     // const padInfo = document.querySelector(".pad-info") as HTMLParagraphElement;

@@ -349,7 +349,8 @@ export default class PPU {
     }
 
     public cpuRead(address: number): number {
-        let data = 0x00;
+        const data = new Uint8Array(1);
+        data[0] = 0x00;
 
         switch (address) {
             // write only
@@ -361,7 +362,7 @@ export default class PPU {
                 // we're not gonna bother with noise, cause it's noise,
                 // if some game is using noise as valid data, they should be
                 // ashamed
-                data = this.PPUSTATUS.getValue & 0xE0 | (this.PPUDATA.getValue & 0x1F);
+                data[0] = (this.PPUSTATUS.getValue & 0xE0) | (this.PPUDATA.getValue & 0x1F);
 
                 // cleared after reading, as per description of the flag
                 this.PPUSTATUS.clearBit(PPUSTATUSFlag.V);
@@ -387,11 +388,11 @@ export default class PPU {
             // PPUDATA
             case 0x0007: {
                 // read
-                data = this.PPUDATA.getValue;
+                data[0] = this.PPUDATA.getValue;
                 this.PPUDATA.setReg(this.ppuRead(this.vReg.getValue));
 
                 if (isInRange(address, 0x3F00, 0x3FFF)) {
-                    data = this.PPUDATA.getValue;
+                    data[0] = this.PPUDATA.getValue;
                 }
 
                 const vramVal = this.PPUCTRL.getBit(PPUCTRLFlag.vRAMAddr);
@@ -400,7 +401,7 @@ export default class PPU {
             }
         }
 
-        return data;
+        return data[0];
     }
 
     public cpuWrite(address: number, val: number): void {
@@ -450,12 +451,12 @@ export default class PPU {
                 if (this.w === 0) {
                     // this.internalTReg.storeBits(val & 0x3F, 8, 6);
                     // ! in case upper doesn't work
-                    this.tReg.setReg((val & 0x3F) << 8 | this.tReg.getValue & 0x00FF);
+                    this.tReg.setReg(((val & 0x3F) << 8) | this.tReg.getValue & 0x00FF);
                     this.tReg.clearBit(15);
 
                     this.w = 1;
                 } else if (this.w === 1) { // write again
-                    this.tReg.setReg(this.tReg.getValue & 0xFF00 | val);
+                    this.tReg.setReg((this.tReg.getValue & 0xFF00) | val);
                     this.vReg.setReg(this.tReg.getValue);
 
                     this.w = 0;

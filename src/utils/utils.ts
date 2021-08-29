@@ -3,7 +3,7 @@ export function to8bitBinary(num: number): string {
 }
 
 export function toHex(num: number, padding: number): string {
-    return "0x" + num.toString(16).padStart(padding).toUpperCase();
+    return "0x" + num.toString(16).padStart(padding, "0").toUpperCase();
 }
 
 export function isInRange(val: number, start: number, end: number): boolean {

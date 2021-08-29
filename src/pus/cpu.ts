@@ -1,6 +1,6 @@
 import Bus from "../bus";
 import Register from "./register";
-import { to8bitBinary, toHex } from "../utils/utils";
+import { toHex } from "../utils/utils";
 
 /**
  * 7         6         5-4         3        2                  1     0
@@ -441,24 +441,24 @@ export default class CPU {
         return this.PC.getValue;
     }
 
-    get getSP(): string {
-        return "0x" + (this.SP.getValue.toString(16).toUpperCase().padStart(2, "0"));
+    get getSP(): number {
+        return this.SP.getValue;
     }
     
-    get getACC(): string {
-        return "0x" + (this.ACC.getValue.toString(16).toUpperCase().padStart(2, "0"));
+    get getACC(): number {
+        return this.ACC.getValue;
     }
     
-    get getIRX(): string {
-        return "0x" + (this.IRX.getValue.toString(16).toUpperCase().padStart(2, "0"));
+    get getIRX(): number {
+        return this.IRX.getValue;
     }
     
-    get getIRY(): string {
-        return "0x" + (this.IRY.getValue.toString(16).toUpperCase().padStart(2, "0"));
+    get getIRY(): number {
+        return this.IRY.getValue;
     }
 
-    get getPS(): string {
-        return to8bitBinary(this.PS.getValue);
+    get getPS(): Register<Uint8Array> {
+        return this.PS;
     }
 
     get curOperation(): string {
@@ -508,10 +508,15 @@ export default class CPU {
             case AddressingMode.REL:
                 this.relAddress = this.bus.read(this.PC.getValue);
                 this.PC.incr();
+
                 if (this.relAddress & 0x80) {
                     this.relAddress |= 0xFF00;
                 }
-                // cycles = 1; 🤔
+                // if (this.relAddress < 0x80) {
+                //     //
+                // } else {
+                //     this.relAddress -= 0x0100;
+                // }
                 cycles = 0;
                 break;
             case AddressingMode.IND: {
@@ -531,13 +536,13 @@ export default class CPU {
                 break;
             }
             case AddressingMode.ZPI_X: {
-                this.absAddress = this.bus.read(this.PC.getValue + this.IRX.getValue);
+                this.absAddress = this.bus.read(this.PC.getValue) + this.IRX.getValue;
                 this.PC.incr();
                 this.absAddress &= 0x00FF;
                 break;
             }
             case AddressingMode.ZPI_Y: {
-                this.absAddress = this.bus.read(this.PC.getValue + this.IRY.getValue);
+                this.absAddress = this.bus.read(this.PC.getValue) + this.IRY.getValue;
                 this.PC.incr();
                 this.absAddress &= 0x00FF;
                 break;
@@ -578,7 +583,7 @@ export default class CPU {
                 const LL = this.bus.read(this.PC.getValue);
                 this.PC.incr();
 
-                const low = this.bus.read((LL + this.IRX.getValue) & 0x00FF);
+                const low  = this.bus.read((LL + this.IRX.getValue) & 0x00FF);
                 const high = this.bus.read((LL + this.IRX.getValue + 1) & 0x00FF);
 
                 this.absAddress = (high << 8) | low;
@@ -590,23 +595,21 @@ export default class CPU {
                 const LL = this.bus.read(this.PC.getValue);
                 this.PC.incr();
 
-                const low = this.bus.read(LL & 0x00FF);
-                const high = this.bus.read(LL +1 & 0x00FF);
+                const low  = this.bus.read(LL     & 0x00FF);
+                const high = this.bus.read(LL + 1 & 0x00FF);
 
                 this.absAddress = (high << 8) | low;
                 this.absAddress += this.IRY.getValue;
 
-                if ((this.absAddress >> 8) != high) {
+                if ((this.absAddress & 0xFF00) != (high << 8)) {
                     cycles = 1;
                 } else {
                     cycles = 0;
                 }
                 break;
             }
-            default:
-                cycles = 0;
-            
         }
+
         return cycles;
     }
     
@@ -633,7 +636,7 @@ export default class CPU {
 
     /** unused */
     private writeToMemory(address: number, val: number): void {
-        console.log(address, val);
+        this.bus.write(address, val);
     }
 
     private writeToStack(val: number): void {
@@ -657,6 +660,8 @@ export default class CPU {
         if (this.cycles === 0) {
             this.opcode = this.fetchNextOpcode();
             const operation = this.operations[this.opcode];
+
+            this.PS.setBit(5);
 
             this.cycles = operation.cycles;
 
@@ -801,7 +806,7 @@ export default class CPU {
         const temp = this.ACC.getValue + this.fetched + this.PS.getBit(StatusFlag.C);
 
         this.PS.storeBit(StatusFlag.C, +(temp > 255));
-        this.PS.storeBit(StatusFlag.N, (temp & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x80));
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0));
         this.PS.storeBit(StatusFlag.V, (~(this.ACC.getValue ^ this.fetched) & (this.ACC.getValue ^ temp) & 0x0080));
 
@@ -819,7 +824,7 @@ export default class CPU {
         this.ACC.setReg(temp);
 
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.ACC.getValue & 0x80));
         return 1;
     }
 
@@ -831,7 +836,7 @@ export default class CPU {
         const temp = this.fetched << 1;
 
         this.PS.storeBit(StatusFlag.C, +((temp & 0xFF00) > 0));
-        this.PS.storeBit(StatusFlag.N, (temp & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x80));
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0));
 
         if (this.operations[this.opcode].addrMode === AddressingMode.IMM) {
@@ -919,7 +924,9 @@ export default class CPU {
     private BMI(): number {
         if (this.PS.getBit(StatusFlag.N)) {
             this.cycles++;
-            this.absAddress = this.PC.getValue + this.relAddress;
+            const temp: Uint16Array = new Uint16Array(1);
+            temp[0] = this.PC.getValue + this.relAddress;
+            this.absAddress = temp[0];
 
             if ((this.absAddress & 0xFF00) !== (this.PC.getValue & 0xFF00)) {
                 this.cycles++;
@@ -937,7 +944,9 @@ export default class CPU {
     private BNE(): number {
         if (!this.PS.getBit(StatusFlag.Z)) {
             this.cycles++;
-            this.absAddress = this.PC.getValue + this.relAddress;
+            const temp: Uint16Array = new Uint16Array(1);
+            temp[0] = this.PC.getValue + this.relAddress;
+            this.absAddress = temp[0];
 
             if ((this.absAddress & 0xFF00) !== (this.PC.getValue & 0xFF00)) {
                 this.cycles++;
@@ -954,7 +963,9 @@ export default class CPU {
     private BPL(): number {
         if (!this.PS.getBit(StatusFlag.N)) {
             this.cycles++;
-            this.absAddress = this.PC.getValue + this.relAddress;
+            const temp: Uint16Array = new Uint16Array(1);
+            temp[0] = this.PC.getValue + this.relAddress;
+            this.absAddress = temp[0];
 
             if ((this.absAddress & 0xFF00) !== (this.PC.getValue & 0xFF00)) {
                 this.cycles++;
@@ -984,7 +995,6 @@ export default class CPU {
         const high = this.bus.read(0xFFFF);
         
         this.PC.setReg(low | (high << 8));
-        console.log(high, low, this.PC.getValue);
         return 0;
     }
 
@@ -994,7 +1004,9 @@ export default class CPU {
     private BVC(): number {
         if (!this.PS.getBit(StatusFlag.V)) {
             this.cycles++;
-            this.absAddress = this.PC.getValue + this.relAddress;
+            const temp: Uint16Array = new Uint16Array(1);
+            temp[0] = this.PC.getValue + this.relAddress;
+            this.absAddress = temp[0];
 
             if ((this.absAddress & 0xFF00) !== (this.PC.getValue & 0xFF00)) {
                 this.cycles++;
@@ -1013,7 +1025,9 @@ export default class CPU {
         // V has come to
         if (this.PS.getBit(StatusFlag.V)) {
             this.cycles++;
-            this.absAddress = this.PC.getValue + this.relAddress;
+            const temp: Uint16Array = new Uint16Array(1);
+            temp[0] = this.PC.getValue + this.relAddress;
+            this.absAddress = temp[0];
 
             if ((this.absAddress & 0xFF00) !== (this.PC.getValue & 0xFF00)) {
                 this.cycles++;
@@ -1062,11 +1076,13 @@ export default class CPU {
     private CMP(): number {
         this.fetched = this.loadFromMemory();
 
-        const temp = this.ACC.getValue - this.fetched;
+        const temp: Uint16Array = new Uint16Array(1);
+        temp[0] = this.ACC.getValue - this.fetched;
+        // const temp = ;
 
-        this.PS.storeBit(StatusFlag.N, +(temp & 0x0080));
-        this.PS.storeBit(StatusFlag.C, +(temp > this.fetched));
-        this.PS.storeBit(StatusFlag.N, +((temp & 0x00FF) === 0x0000));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x0080));
+        this.PS.storeBit(StatusFlag.C, +(temp[0] > this.fetched));
+        this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0x0000));
 
         return 1;
     }
@@ -1077,11 +1093,12 @@ export default class CPU {
     private CPX(): number {
         this.fetched = this.loadFromMemory();
 
-        const temp = this.IRX.getValue - this.fetched;
+        const temp: Uint16Array = new Uint16Array(1);
+        temp[0] = this.IRX.getValue - this.fetched;
 
-        this.PS.storeBit(StatusFlag.N, +(temp & 0x0080));
-        this.PS.storeBit(StatusFlag.C, +(temp > this.fetched));
-        this.PS.storeBit(StatusFlag.N, +((temp & 0x00FF) === 0x0000));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x0080));
+        this.PS.storeBit(StatusFlag.C, +(temp[0] > this.fetched));
+        this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0x0000));
         return 0;
     }
 
@@ -1091,11 +1108,12 @@ export default class CPU {
     private CPY(): number {
         this.fetched = this.loadFromMemory();
 
-        const temp = this.IRY.getValue - this.fetched;
+        const temp: Uint16Array = new Uint16Array(1);
+        temp[0] = this.IRY.getValue - this.fetched;
 
-        this.PS.storeBit(StatusFlag.N, +(temp & 0x0080));
-        this.PS.storeBit(StatusFlag.C, +(temp > this.fetched));
-        this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0x0000));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x0080));
+        this.PS.storeBit(StatusFlag.C, +(temp[0] > this.fetched));
+        this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0x0000));
         return 0;
     }
 
@@ -1107,7 +1125,7 @@ export default class CPU {
         const temp = this.fetched - 1;
         this.writeToMemory(this.absAddress, temp & 0x00FF);
         this.PS.storeBit(StatusFlag.Z, +(temp === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(temp & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x80));
         return 0;
     }
 
@@ -1117,7 +1135,7 @@ export default class CPU {
     private DEX(): number {
         this.IRX.decr();
         this.PS.storeBit(StatusFlag.Z, +(this.IRX.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.IRX.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.IRX.getValue & 0x80));
         return 0;
     }
 
@@ -1127,7 +1145,7 @@ export default class CPU {
     private DEY(): number {
         this.IRY.decr();
         this.PS.storeBit(StatusFlag.Z, +(this.IRY.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.IRY.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.IRY.getValue & 0x80));
         return 0;
     }
 
@@ -1140,7 +1158,7 @@ export default class CPU {
         this.ACC.setReg(temp);
 
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.ACC.getValue & 0x80));
 
         return 0;
     }
@@ -1154,7 +1172,7 @@ export default class CPU {
         this.bus.write(this.absAddress, temp);
 
         this.PS.storeBit(StatusFlag.N, +(temp & 0x0080));
-        this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0x0000));
+        this.PS.storeBit(StatusFlag.Z, +Boolean((temp & 0x00FF) === 0x0000));
 
         return 0;
     }
@@ -1165,7 +1183,7 @@ export default class CPU {
     private INX(): number {
         this.IRX.incr();
         this.PS.storeBit(StatusFlag.Z, +(this.IRX.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.IRX.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.IRX.getValue & 0x80));
         return 0;
     }
 
@@ -1175,7 +1193,7 @@ export default class CPU {
     private INY(): number {
         this.IRY.incr();
         this.PS.storeBit(StatusFlag.Z, +(this.IRY.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.IRY.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.IRY.getValue & 0x80));
         return 0;
     }
 
@@ -1203,9 +1221,12 @@ export default class CPU {
      * Load accumulator
      */
     private LDA(): number {
-        this.ACC.setReg(this.loadFromMemory());
+        this.fetched = this.loadFromMemory();
+        // console.log(this.fetched, this.absAddress);
+
+        this.ACC.setReg(this.fetched);
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.ACC.getValue & 0x80));
         return 1;
     }
 
@@ -1213,9 +1234,10 @@ export default class CPU {
      * Load X
      */
     private LDX(): number {
-        this.IRX.setReg(this.loadFromMemory());
+        this.fetched = this.loadFromMemory();
+        this.IRX.setReg(this.fetched);
         this.PS.storeBit(StatusFlag.Z, +(this.IRX.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.IRX.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.IRX.getValue & 0x80));
         return 1;
     }
 
@@ -1223,9 +1245,10 @@ export default class CPU {
      * Load Y
      */
     private LDY(): number {
-        this.IRY.setReg(this.loadFromMemory());
+        this.fetched = this.loadFromMemory();
+        this.IRY.setReg(this.fetched);
         this.PS.storeBit(StatusFlag.Z, +(this.IRY.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.IRY.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.IRY.getValue & 0x80));
         return 1;
     }
 
@@ -1237,7 +1260,7 @@ export default class CPU {
         this.PS.storeBit(StatusFlag.C, this.fetched & 0x0001);
         const temp = this.fetched >> 1;
 
-        this.PS.storeBit(StatusFlag.N, +(temp & 0x0080));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x0080));
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0x0000));
 
         if (this.operations[this.opcode].addrMode === AddressingMode.IMM) {
@@ -1274,7 +1297,7 @@ export default class CPU {
         this.ACC.setReg(temp);
 
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.ACC.getValue & 0x80));
         return 0;
     }
 
@@ -1305,7 +1328,7 @@ export default class CPU {
         this.SP.incr();
         this.ACC.setReg(this.bus.read(0x0100 + this.SP.getValue));
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.ACC.getValue & 0x80));
         return 0;
     }
 
@@ -1328,7 +1351,7 @@ export default class CPU {
         const temp = this.fetched << 1 | this.PS.getBit(StatusFlag.C);
 
         this.PS.storeBit(StatusFlag.C, this.fetched & 0x0001);
-        this.PS.storeBit(StatusFlag.N, +(temp & 0x0080));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x0080));
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0x0000));
 
         if (this.operations[this.opcode].addrMode === AddressingMode.IMM) {
@@ -1350,7 +1373,7 @@ export default class CPU {
         const temp = (this.PS.getBit(StatusFlag.C) << 7) | (this.fetched >> 1);
 
         this.PS.storeBit(StatusFlag.C, this.fetched & 0x01);
-        this.PS.storeBit(StatusFlag.N, +(temp & 0x0080));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x0080));
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0x00));
 
         if (this.operations[this.opcode].addrMode === AddressingMode.IMM) {
@@ -1399,7 +1422,7 @@ export default class CPU {
         const temp = this.ACC.getValue + val + this.PS.getBit(StatusFlag.C);
 
         this.PS.storeBit(StatusFlag.C, +(temp > 255));
-        this.PS.storeBit(StatusFlag.N, (temp & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x80));
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0));
         this.PS.storeBit(StatusFlag.V, ((this.ACC.getValue ^ this.fetched) & (this.ACC.getValue ^ temp) & 0x0080));
 
@@ -1461,7 +1484,7 @@ export default class CPU {
     private TAX(): number {
         this.IRX.setReg(this.ACC.getValue);
         this.PS.storeBit(StatusFlag.Z, +(this.IRX.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.IRX.getValue & 0x80)); // check if 8th bit is 1
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.IRX.getValue & 0x80)); // check if 8th bit is 1
         return 0;
     }
 
@@ -1471,7 +1494,7 @@ export default class CPU {
     private TAY(): number {
         this.IRY.setReg(this.ACC.getValue);
         this.PS.storeBit(StatusFlag.Z, +(this.IRY.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.IRY.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.IRY.getValue & 0x80));
         return 0;
     }
     
@@ -1481,7 +1504,7 @@ export default class CPU {
     private TSX(): number {
         this.IRX.setReg(this.SP.getValue);
         this.PS.storeBit(StatusFlag.Z, +(this.IRX.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.IRX.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.IRX.getValue & 0x80));
         return 0;
     }
 
@@ -1491,7 +1514,7 @@ export default class CPU {
     private TXA(): number {
         this.ACC.setReg(this.IRX.getValue);
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.ACC.getValue & 0x80));
         return 0;
     }
 
@@ -1509,7 +1532,7 @@ export default class CPU {
     private TYA(): number {
         this.ACC.setReg(this.IRY.getValue);
         this.PS.storeBit(StatusFlag.Z, +(this.ACC.getValue === 0x00));
-        this.PS.storeBit(StatusFlag.N, +(this.ACC.getValue & 0x80));
+        this.PS.storeBit(StatusFlag.N, +Boolean(this.ACC.getValue & 0x80));
         return 0;
     }
 
