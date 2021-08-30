@@ -1,4 +1,4 @@
-import { isInRange } from "../utils/utils";
+import { isInRange, toHex } from "../utils/utils";
 import Display, { Pixel, Sprite } from "../utils/display";
 import Register from "./register";
 import ROM from "../rom/rom";
@@ -212,7 +212,7 @@ export default class PPU {
     public  frameComplete: boolean = false;
 
     private display: Display | null;
-    private rom: ROM | null;
+    private rom:     ROM | null;
 
     public nmi: boolean = false;
 
@@ -231,7 +231,7 @@ export default class PPU {
         this.tReg = new Register<Uint16Array>(Uint16Array);
         
         this.OAM = new Uint8Array(64 * 4); // 64 sprtes, 4 bytes each
-        // this.ram = new Uint8Array(2048);
+
         for (let i = 0; i < 2; i++) {
             this.nametables[i] = new Uint8Array(1024);
         }
@@ -246,15 +246,55 @@ export default class PPU {
         this.rom     = null;
     }
 
-    reset(): void {
+    /*
+        Register                 |  At Power    | After Reset
+        -------------------------|--------------| -----------
+        PPUCTRL ($2000)          |  0000 0000   | 0000 0000
+        PPUMASK ($2001)          |  0000 0000   | 0000 0000
+        PPUSTATUS ($2002)        |  +0+x xxxx   | U??x xxxx
+        OAMADDR ($2003)          |  $00         | unchanged1
+        $2005 / $2006 latch      |  cleared     | cleared
+        PPUSCROLL ($2005)        |  $0000       | $0000
+        PPUADDR ($2006)          |  $0000       | unchanged
+        PPUDATA ($2007) read buf |  $00         | $00
+        odd frame                |  no          | no
+        OAM                      |  unspecified | unspecified
+        Palette                  |  unspecified | unchanged
+
+        ? = unknown, x = irrelevant, + = often set, U = unchanged 
+    */
+
+    public boot(): void {
+        this.cycle = 0;
+        this.scanline = 0;
+        this.w = 0x00;
+        this.fineX = 0x00;
+        this.PPUCTRL.setReg(0x00);
+        this.PPUMASK.setReg(0x00);
+        this.PPUSTATUS.setReg(0b10100000);
+        this.PPUDATA.setReg(0x00);
+        this.vReg.setReg(0x0000);
+        this.tReg.setReg(0x0000);
+
+        this.tileID = 0x00;
+        this.tileAttr = 0x00;
+        this.tileMSB = 0x00;
+        this.tileLSB = 0x00;
+        this.shiftPatternLow.setReg(0x0000);
+        this.shiftPatternHigh.setReg(0x0000);
+        this.shiftAttribLow.setReg(0x0000);
+        this.shiftAttribHigh.setReg(0x0000);
+    }
+
+    public reset(): void {
        this.cycle = 0;
        this.scanline = 0;
        this.w = 0x00;
        this.fineX = 0x00;
-       this.PPUDATA.setReg(0x00);
-       this.PPUSTATUS.setReg(0x00);
-       this.PPUMASK.setReg(0x00);
        this.PPUCTRL.setReg(0x00);
+       this.PPUMASK.setReg(0x00);
+    //    this.PPUSTATUS.setReg(0b10100000);
+       this.PPUDATA.setReg(0x00);
        this.vReg.setReg(0x0000);
        this.tReg.setReg(0x0000);
 
@@ -325,7 +365,7 @@ export default class PPU {
                 data = this.PPUMASK.getValue;
                 break;
             case 0x0002: // PPUSTATUS
-                data = this.PPUSTATUS.getValue & 0xE0;
+                data = this.PPUSTATUS.getValue;
                 break;
             case 0x0003: // OAMADDR
                 data = this.OAMADDR.getValue;
@@ -787,6 +827,7 @@ export default class PPU {
             if (this.scanline == 241 && this.cycle == 1) {
                 // we enter the blanking interval
                 this.PPUSTATUS.setBit(PPUSTATUSFlag.V);
+                console.log("BLANKING", toHex(this.debugRead(0x0002), 2));
 
                 if (this.PPUCTRL.getBit(PPUCTRLFlag.genNMI)) {
                     this.nmi = true;
@@ -802,13 +843,13 @@ export default class PPU {
             const bitMux = 0x8000 >> this.fineX;
 
             // I could just convert it into a number, but I don't trust JS at all
-            const p0 = ((this.shiftPatternLow.getValue  & bitMux) > 0) ? 0x01 : 0x00;
-            const p1 = ((this.shiftPatternHigh.getValue & bitMux) > 0) ? 0x01 : 0x00;
+            const p0 = ((this.shiftPatternLow.getValue  & bitMux) > 0) ? 0x1 : 0x0;
+            const p1 = ((this.shiftPatternHigh.getValue & bitMux) > 0) ? 0x1 : 0x0;
 
             bckgPixel = (p1 << 1) | p0;
 
-            const palette0 = ((this.shiftAttribLow.getValue  & bitMux) > 0) ? 0x01 : 0x00;
-            const palette1 = ((this.shiftAttribHigh.getValue & bitMux) > 0) ? 0x01 : 0x00;
+            const palette0 = ((this.shiftAttribLow.getValue  & bitMux) > 0) ? 0x1 : 0x0;
+            const palette1 = ((this.shiftAttribHigh.getValue & bitMux) > 0) ? 0x1 : 0x0;
 
             bckgPalette = (palette1 << 1) | palette0;
         }

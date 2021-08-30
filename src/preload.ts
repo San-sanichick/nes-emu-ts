@@ -18,6 +18,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const runBtn        = document.querySelector(".run-btn") as HTMLButtonElement;
     const pauseBtn      = document.querySelector(".pause-btn") as HTMLButtonElement;
     const singleStepBtn = document.querySelector(".single-step-btn") as HTMLButtonElement;
+    const singleCycleBtn = document.querySelector(".single-cycle-btn") as HTMLButtonElement;
     const resetBtn      = document.querySelector(".reset-btn") as HTMLButtonElement;
     
     const display = new Display(canvas);
@@ -54,6 +55,15 @@ window.addEventListener("DOMContentLoaded", () => {
             requestAnimationFrame(update);
         }
     }
+
+    singleCycleBtn.addEventListener("click", () => {
+        do {
+            bus.clock();
+        } while (!bus.getCPU.stepComplete);
+        // bus.ppu.frameComplete = false;
+
+        drawDebug();
+    });
 
     runBtn.addEventListener("click", () => {
         run = true;

@@ -512,11 +512,6 @@ export default class CPU {
                 if (this.relAddress & 0x80) {
                     this.relAddress |= 0xFF00;
                 }
-                // if (this.relAddress < 0x80) {
-                //     //
-                // } else {
-                //     this.relAddress -= 0x0100;
-                // }
                 cycles = 0;
                 break;
             case AddressingMode.IND: {
@@ -526,23 +521,31 @@ export default class CPU {
                 this.PC.incr();
 
                 const pointerAddress = (high << 8) | low;
+                
+                const temp = new Uint16Array(1);
 
                 // so apparently this thing is bugged? Thanks 6502
                 if (low === 0x00FF) {
-                    this.absAddress = ((this.bus.read(pointerAddress & 0xFF00) << 8) | this.bus.read(pointerAddress + 0)); 
+                    temp[0] = (this.bus.read(pointerAddress & 0xFF00) << 8);
+                    this.absAddress = (temp[0] | this.bus.read(pointerAddress + 0)); 
                 } else {
-                    this.absAddress = ((this.bus.read(pointerAddress + 1) << 8) | this.bus.read(pointerAddress + 0)); 
+                    temp[0] = (this.bus.read(pointerAddress + 1) << 8);
+                    this.absAddress = (temp[0] | this.bus.read(pointerAddress + 0)); 
                 }
                 break;
             }
             case AddressingMode.ZPI_X: {
-                this.absAddress = this.bus.read(this.PC.getValue) + this.IRX.getValue;
+                const temp = new Uint16Array(1);
+                temp[0] =  this.bus.read(this.PC.getValue) + this.IRX.getValue;
+                this.absAddress = temp[0];
                 this.PC.incr();
                 this.absAddress &= 0x00FF;
                 break;
             }
             case AddressingMode.ZPI_Y: {
-                this.absAddress = this.bus.read(this.PC.getValue) + this.IRY.getValue;
+                const temp = new Uint16Array(1);
+                temp[0] =  this.bus.read(this.PC.getValue) + this.IRY.getValue;
+                this.absAddress = temp[0];
                 this.PC.incr();
                 this.absAddress &= 0x00FF;
                 break;
@@ -554,7 +557,9 @@ export default class CPU {
                 this.PC.incr();
 
                 this.absAddress = (high << 8) | low;
-                this.absAddress += this.IRX.getValue;
+                const temp = new Uint16Array(1);
+                temp[0] = this.absAddress + this.IRX.getValue;
+                this.absAddress = temp[0];
 
                 if ((this.absAddress & 0xFF00) !== (high << 8)) {
                     cycles = 1;
@@ -570,7 +575,10 @@ export default class CPU {
                 this.PC.incr();
 
                 this.absAddress = (high << 8) | low;
-                this.absAddress += this.IRY.getValue;
+                // this.absAddress += this.IRY.getValue;
+                const temp = new Uint16Array(1);
+                temp[0] = this.absAddress + this.IRY.getValue;
+                this.absAddress = temp[0];
 
                 if ((this.absAddress & 0xFF00) !== (high << 8)) {
                     cycles = 1;
@@ -599,7 +607,10 @@ export default class CPU {
                 const high = this.bus.read(LL + 1 & 0x00FF);
 
                 this.absAddress = (high << 8) | low;
-                this.absAddress += this.IRY.getValue;
+                // this.absAddress += this.IRY.getValue;
+                const temp = new Uint16Array(1);
+                temp[0] = this.absAddress + this.IRY.getValue;
+                this.absAddress = temp[0];
 
                 if ((this.absAddress & 0xFF00) != (high << 8)) {
                     cycles = 1;
@@ -681,6 +692,10 @@ export default class CPU {
         do {
             this.clock();
         } while ((this.cycles !== 0));
+    }
+
+    public get stepComplete(): boolean {
+        return this.cycles === 0;
     }
 
     private fetchNextOpcode() {
@@ -803,14 +818,17 @@ export default class CPU {
      */
     private ADC(): number {
         this.fetched = this.loadFromMemory();
-        const temp = this.ACC.getValue + this.fetched + this.PS.getBit(StatusFlag.C);
+        // const temp = this.ACC.getValue + this.fetched + this.PS.getBit(StatusFlag.C);
+        const temp: Uint16Array = new Uint16Array(1);
+        temp[0] = this.ACC.getValue + this.fetched + this.PS.getBit(StatusFlag.C);
+        // this.absAddress = temp[0];
 
-        this.PS.storeBit(StatusFlag.C, +(temp > 255));
-        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x80));
-        this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0));
-        this.PS.storeBit(StatusFlag.V, (~(this.ACC.getValue ^ this.fetched) & (this.ACC.getValue ^ temp) & 0x0080));
+        this.PS.storeBit(StatusFlag.C, +(temp[0] > 255));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x80));
+        this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0));
+        this.PS.storeBit(StatusFlag.V, (~(this.ACC.getValue ^ this.fetched) & (this.ACC.getValue ^ temp[0]) & 0x0080));
 
-        this.ACC.setReg(temp & 0x00FF);
+        this.ACC.setReg(temp[0] & 0x00FF);
 
         return 1;
     }
@@ -833,16 +851,18 @@ export default class CPU {
      */
     private ASL(): number {
         this.fetched = this.loadFromMemory();
-        const temp = this.fetched << 1;
+        // const temp = ;
+        const temp: Uint16Array = new Uint16Array(1);
+        temp[0] = this.fetched << 1;
 
-        this.PS.storeBit(StatusFlag.C, +((temp & 0xFF00) > 0));
-        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x80));
-        this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0));
+        this.PS.storeBit(StatusFlag.C, +((temp[0] & 0xFF00) > 0));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x80));
+        this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0));
 
         if (this.operations[this.opcode].addrMode === AddressingMode.IMM) {
-            this.ACC.setReg(temp);
+            this.ACC.setReg(temp[0]);
         } else {
-            this.bus.write(this.absAddress, temp & 0x00FF);
+            this.bus.write(this.absAddress, temp[0] & 0x00FF);
         }
 
         return 0;
@@ -854,7 +874,9 @@ export default class CPU {
     private BCC(): number {
         if (!this.PS.getBit(StatusFlag.C)) {
             this.cycles++;
-            this.absAddress = this.PC.getValue + this.relAddress;
+            const temp: Uint16Array = new Uint16Array(1);
+            temp[0] = this.PC.getValue + this.relAddress;
+            this.absAddress = temp[0];
 
             if ((this.absAddress & 0xFF00) !== (this.PC.getValue & 0xFF00)) {
                 this.cycles++;
@@ -871,7 +893,9 @@ export default class CPU {
     private BCS(): number {
         if (this.PS.getBit(StatusFlag.C)) {
             this.cycles++;
-            this.absAddress = this.PC.getValue + this.relAddress;
+            const temp: Uint16Array = new Uint16Array(1);
+            temp[0] = this.PC.getValue + this.relAddress;
+            this.absAddress = temp[0];
 
             if ((this.absAddress & 0xFF00) !== (this.PC.getValue & 0xFF00)) {
                 this.cycles++;
@@ -888,7 +912,9 @@ export default class CPU {
     private BEQ(): number {
         if (this.PS.getBit(StatusFlag.Z)) {
             this.cycles++;
-            this.absAddress = this.PC.getValue + this.relAddress;
+            const temp: Uint16Array = new Uint16Array(1);
+            temp[0] = this.PC.getValue + this.relAddress;
+            this.absAddress = temp[0];
 
             if ((this.absAddress & 0xFF00) !== (this.PC.getValue & 0xFF00)) {
                 this.cycles++;
@@ -1419,14 +1445,16 @@ export default class CPU {
 
         const val = this.fetched ^ 0x00FF;
 
-        const temp = this.ACC.getValue + val + this.PS.getBit(StatusFlag.C);
+        const temp = new Uint16Array(1);
+        temp[0] = this.ACC.getValue + val + this.PS.getBit(StatusFlag.C);
+        // const temp = 
 
-        this.PS.storeBit(StatusFlag.C, +(temp > 255));
-        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x80));
-        this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0));
-        this.PS.storeBit(StatusFlag.V, ((this.ACC.getValue ^ this.fetched) & (this.ACC.getValue ^ temp) & 0x0080));
+        this.PS.storeBit(StatusFlag.C, +(temp[0] > 255));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x80));
+        this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0));
+        this.PS.storeBit(StatusFlag.V, ((this.ACC.getValue ^ this.fetched) & (this.ACC.getValue ^ temp[0]) & 0x0080));
 
-        this.ACC.setReg(temp & 0x00FF);
+        this.ACC.setReg(temp[0] & 0x00FF);
         return 1;
     }
 

@@ -2,6 +2,7 @@ import Register from "../pus/register";
 import CPU from "../pus/cpu";
 import { toHex } from "./utils";
 import PPU from "../pus/ppu";
+import { Sprite } from "./display";
 
 export default class DebugDisplay {
     private canvas: HTMLCanvasElement;
@@ -64,8 +65,8 @@ export default class DebugDisplay {
     }
 
     public drawPPURegisters(ppu: PPU): void {
-        const status = ppu.debugRead(0x2002);
-        const ppudata = ppu.debugRead(0x2007);
+        const status = ppu.debugRead(0x2002 & 0x0007);
+        const ppudata = ppu.debugRead(0x2007 & 0x0007);
 
         this.ctx.fillStyle = "black";
         this.ctx.fillText(`PPUSTATUS: ${toHex(status, 4)}`, this.ppuOffsetX, this.ppuOffsetY);
@@ -88,5 +89,9 @@ export default class DebugDisplay {
             if (i === index) this.ctx.fillStyle = "red";
             this.ctx.fillText(`${toHex(i, 4)}: ${item}`, this.ramOffsetX, this.ramOffsetY + j * 10);
         }
+    }
+
+    public drawSprite(spr: Sprite, x: number, y: number): void {
+        this.ctx.putImageData(spr.getSprite(), x, y);
     }
 }

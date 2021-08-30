@@ -44,6 +44,10 @@ export default class Bus {
         this.ppu.reset();
     }
 
+    public boot(): void {
+        this.ppu.boot();
+    }
+
     /**
      * Loads a given chunk of data into {@link cpuRAM RAM}
      * at a given starting address
@@ -109,7 +113,7 @@ export default class Bus {
         // PPU registers
         // Mirrors of 0x2000-0x2007 (repeats every 8 bytes) 
         else if (isInRange(address, 0x2000, 0x3FFF)) {
-            this.ppu.cpuRead(address & 0x0007);
+            val = this.ppu.cpuRead(address & 0x0007);
         }
 
         // NES APU and I/O registers
@@ -142,7 +146,7 @@ export default class Bus {
         // PPU registers
         // Mirrors of 0x2000-0x2007 (repeats every 8 bytes) 
         else if (isInRange(address, 0x2000, 0x3FFF)) {
-            this.ppu.debugRead(address & 0x0007);
+            val = this.ppu.debugRead(address & 0x0007);
         }
 
         // NES APU and I/O registers
