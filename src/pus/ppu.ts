@@ -1,4 +1,4 @@
-import { isInRange, toHex } from "../utils/utils";
+import { isInRange } from "../utils/utils";
 import Display, { Pixel, Sprite } from "../utils/display";
 import Register from "./register";
 import ROM from "../rom/rom";
@@ -185,7 +185,7 @@ export default class PPU {
     /** First or second write toggle (a.k.a. address latch), used by PPUSCROLL and PPUADDR */
     private w: number = 0x00;
 
-    private nametables:   Uint8Array[] = new Array<Uint8Array>(2);
+    private nametable:    Uint8Array[] = new Array<Uint8Array>(2);
     private patternTable: Uint8Array[] = new Array<Uint8Array>(2);
     private paletteTable: Uint8Array   = new Uint8Array(32);
 
@@ -233,7 +233,7 @@ export default class PPU {
         this.OAM = new Uint8Array(64 * 4); // 64 sprtes, 4 bytes each
 
         for (let i = 0; i < 2; i++) {
-            this.nametables[i] = new Uint8Array(1024);
+            this.nametable[i] = new Uint8Array(1024);
         }
 
         for (let i = 0; i < 2; i++) {
@@ -431,7 +431,7 @@ export default class PPU {
                 data[0] = this.PPUDATA.getValue;
                 this.PPUDATA.setReg(this.ppuRead(this.vReg.getValue));
 
-                if (isInRange(address, 0x3F00, 0x3FFF)) {
+                if (address >= 0x3F00) {
                     data[0] = this.PPUDATA.getValue;
                 }
 
@@ -444,24 +444,24 @@ export default class PPU {
         return data[0];
     }
 
-    public cpuWrite(address: number, val: number): void {
+    public cpuWrite(address: number, data: number): void {
         switch (address) {
             // PPUCTRL write only
             case 0x0000:
                 // write
-                this.PPUCTRL.setReg(val);
-                console.log(`Wrote to PPUCTRL: ${toHex(this.PPUCTRL.getValue, 2)}`);
+                this.PPUCTRL.setReg(data);
+                // console.log(`Wrote to PPUCTRL: ${toHex(this.PPUCTRL.getValue, 2)}`);
 
 
                 this.tReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableX), IR.nametableX);
                 this.tReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableY), IR.nametableY);
-                console.log(`tReg: ${toHex(this.tReg.getValue, 4)}`);
+                // console.log(`tReg: ${toHex(this.tReg.getValue, 4)}`);
                 break;
             // write only
             case 0x0001:
                 // write
-                this.PPUMASK.setReg(val);
-                console.log(`Wrote to PPUMASK: ${toHex(this.PPUMASK.getValue, 2)}`);
+                this.PPUMASK.setReg(data);
+                // console.log(`Wrote to PPUMASK: ${toHex(this.PPUMASK.getValue, 2)}`);
                 break;
             // read only
             case 0x0002: break;
@@ -477,13 +477,13 @@ export default class PPU {
             case 0x0005:
                 // write
                 if (this.w === 0) {
-                    this.fineX = val & 0x07;
-                    this.tReg.storeBits(val >> 3, IR.coarseX);
+                    this.fineX = data & 0x07;
+                    this.tReg.storeBits(data >> 3, IR.coarseX);
 
                     this.w = 1;
                 } else if (this.w === 1) { // write again
-                    this.tReg.storeBits(val >> 3, IR.coarseY);
-                    this.tReg.storeBits(val & 0x07, IR.fineY);
+                    this.tReg.storeBits(data & 0x07, IR.fineY);
+                    this.tReg.storeBits(data >> 3, IR.coarseY);
 
                     this.w = 0;
                 } 
@@ -495,12 +495,12 @@ export default class PPU {
                 if (this.w === 0) {
                     // this.internalTReg.storeBits(val & 0x3F, 8, 6);
                     // ! in case upper doesn't work
-                    this.tReg.setReg(((val & 0x3F) << 8) | this.tReg.getValue & 0x00FF);
+                    this.tReg.setReg(((data & 0x3F) << 8) | this.tReg.getValue & 0x00FF);
                     // this.tReg.clearBit(15);
 
                     this.w = 1;
                 } else if (this.w === 1) { // write again
-                    this.tReg.setReg((this.tReg.getValue & 0xFF00) | val);
+                    this.tReg.setReg((this.tReg.getValue & 0xFF00) | data);
                     this.vReg.setReg(this.tReg.getValue);
 
                     this.w = 0;
@@ -510,7 +510,7 @@ export default class PPU {
             // read/write
             case 0x0007: {
                 // write
-                this.ppuWrite(this.vReg.getValue, val);
+                this.ppuWrite(this.vReg.getValue, data);
 
                 const vramVal = this.PPUCTRL.getBit(PPUCTRLFlag.vRAMAddr);
                 this.vReg.add(vramVal === 0 ? 1 : 32);
@@ -541,30 +541,30 @@ export default class PPU {
 
             if (mirroring === Mirroring.VERTICAL) {
                 if (isInRange(address, 0x0000, 0x03FF)) {
-                    data = this.nametables[0][address & 0x03FF];
+                    data = this.nametable[0][address & 0x03FF];
                 }
                 if (isInRange(address, 0x0400, 0x07FF)) {
-                    data = this.nametables[1][address & 0x03FF];
+                    data = this.nametable[1][address & 0x03FF];
                 }
                 if (isInRange(address, 0x0800, 0x0BFF)) {
-                    data = this.nametables[0][address & 0x03FF];
+                    data = this.nametable[0][address & 0x03FF];
                 }
                 if (isInRange(address, 0x0C00, 0x0FFF)) {
-                    data = this.nametables[1][address & 0x03FF];
+                    data = this.nametable[1][address & 0x03FF];
                 }
 
             } else if (mirroring === Mirroring.HORIZONTAL) {
                 if (isInRange(address, 0x0000, 0x03FF)) {
-                    data = this.nametables[0][address & 0x03FF];
+                    data = this.nametable[0][address & 0x03FF];
                 }
                 if (isInRange(address, 0x0400, 0x07FF)) {
-                    data = this.nametables[0][address & 0x03FF];
+                    data = this.nametable[0][address & 0x03FF];
                 }
                 if (isInRange(address, 0x0800, 0x0BFF)) {
-                    data = this.nametables[1][address & 0x03FF];
+                    data = this.nametable[1][address & 0x03FF];
                 }
                 if (isInRange(address, 0x0C00, 0x0FFF)) {
-                    data = this.nametables[1][address & 0x03FF];
+                    data = this.nametable[1][address & 0x03FF];
                 }
             }
         }
@@ -602,30 +602,30 @@ export default class PPU {
 
             if (mirroring === Mirroring.VERTICAL) {
                 if (isInRange(address, 0x0000, 0x03FF)) {
-                    this.nametables[0][address & 0x03FF] = data;
+                    this.nametable[0][address & 0x03FF] = data;
                 }
                 if (isInRange(address, 0x0400, 0x07FF)) {
-                    this.nametables[1][address & 0x03FF] = data;
+                    this.nametable[1][address & 0x03FF] = data;
                 }
                 if (isInRange(address, 0x0800, 0x0BFF)) {
-                    this.nametables[0][address & 0x03FF] = data
+                    this.nametable[0][address & 0x03FF] = data
                 }
                 if (isInRange(address, 0x0C00, 0x0FFF)) {
-                    this.nametables[1][address & 0x03FF] = data;
+                    this.nametable[1][address & 0x03FF] = data;
                 }
 
             } else if (mirroring === Mirroring.HORIZONTAL) {
                 if (isInRange(address, 0x0000, 0x03FF)) {
-                    this.nametables[0][address & 0x03FF] = data;
+                    this.nametable[0][address & 0x03FF] = data;
                 }
                 if (isInRange(address, 0x0400, 0x07FF)) {
-                    this.nametables[0][address & 0x03FF] = data;
+                    this.nametable[0][address & 0x03FF] = data;
                 }
                 if (isInRange(address, 0x0800, 0x0BFF)) {
-                    this.nametables[1][address & 0x03FF] = data;
+                    this.nametable[1][address & 0x03FF] = data;
                 }
                 if (isInRange(address, 0x0C00, 0x0FFF)) {
-                    this.nametables[1][address & 0x03FF] = data;
+                    this.nametable[1][address & 0x03FF] = data;
                 }
             }
         }
@@ -667,9 +667,12 @@ export default class PPU {
          */
         const incrScrollY = (): void => {
             if (this.PPUMASK.getBit(PPUMASKFlag.b) || this.PPUMASK.getBit(PPUMASKFlag.s)) {
+                // console.log(this.vReg.getValue);
                 if (this.vReg.getBits(IR.fineY) < 7) {
+                    
                     const temp = this.vReg.getBits(IR.fineY);
                     this.vReg.storeBits(temp + 1, IR.fineY);
+                    // console.log(temp);
                 } else {
                     this.vReg.storeBits(0, IR.fineY);
                     const y = this.vReg.getBits(IR.coarseY);
@@ -760,6 +763,7 @@ export default class PPU {
                 switch((this.cycle - 1) % 8) {
                     case 0:
                         loadBckgShiftReg();
+                        // console.log(0x2000 | (this.vReg.getValue & 0x0FFF));
                         this.tileID = this.ppuRead(0x2000 | (this.vReg.getValue & 0x0FFF));
                         break;
                     case 2: {
@@ -767,7 +771,7 @@ export default class PPU {
                         const tempNametableX = this.vReg.getBits(IR.nametableX) << 10;
                         const tempCoarseY = (this.vReg.getBits(IR.coarseY) >> 2) << 3;
                         const tempCoarseX = (this.vReg.getBits(IR.coarseX) >> 2);
-                        this.tileAttr = this.ppuRead(0x23C0 | tempNametableX | tempNametableY | tempCoarseX | tempCoarseY);
+                        this.tileAttr = this.ppuRead(0x23C0 | tempNametableY | tempNametableX | tempCoarseY | tempCoarseX);
                         
                         if (this.vReg.getBits(IR.coarseY) & 0x02) this.tileAttr >>= 4;
                         if (this.vReg.getBits(IR.coarseX) & 0x02) this.tileAttr >>= 2;
@@ -821,7 +825,7 @@ export default class PPU {
 
             // ppu reads nametable data here. twice. why? only god knows
             if (this.cycle === 338 || this.cycle === 340) {
-                this.tileID = this.ppuRead(0x2000 | this.vReg.getValue & 0x0FFF);
+                this.tileID = this.ppuRead(0x2000 | (this.vReg.getValue & 0x0FFF));
             }
 
             if (this.scanline === -1 && this.cycle >= 280 && this.cycle < 305) {
@@ -848,21 +852,22 @@ export default class PPU {
             const bitMux = 0x8000 >> this.fineX;
 
             // I could just convert it into a number, but I don't trust JS at all
-            const p0 = ((this.shiftPatternLow.getValue  & bitMux) > 0) ? 0x1 : 0x0;
-            const p1 = ((this.shiftPatternHigh.getValue & bitMux) > 0) ? 0x1 : 0x0;
+            // if (this.scanline === 50) console.log(this.shiftPatternHigh.getValue)
+            const p0 = +((this.shiftPatternLow.getValue  & bitMux) > 0);
+            const p1 = +((this.shiftPatternHigh.getValue & bitMux) > 0);
 
             bckgPixel = (p1 << 1) | p0;
 
-            const palette0 = ((this.shiftAttribLow.getValue  & bitMux) > 0) ? 0x1 : 0x0;
-            const palette1 = ((this.shiftAttribHigh.getValue & bitMux) > 0) ? 0x1 : 0x0;
+            const palette0 = +((this.shiftAttribLow.getValue  & bitMux) > 0);
+            const palette1 = +((this.shiftAttribHigh.getValue & bitMux) > 0);
 
             bckgPalette = (palette1 << 1) | palette0;
         }
 
         // sweet noise
-        // this.display.drawPixel(this.cycle - 1, this.scanline, this.palette[fastRounding(Math.random()) ? 0x3F : 0x30]);
-        this.display.drawPixel(this.cycle - 1, this.scanline, this.getColor(bckgPalette, bckgPixel));
-
+        const color = this.getColor(bckgPalette, bckgPixel);
+        this.display.drawPixel(this.cycle - 1, this.scanline, color);
+        
         this.cycle++;
         if (this.cycle >= 341) {
             this.cycle = 0;
@@ -870,6 +875,7 @@ export default class PPU {
             if (this.scanline >= 261) {
                 this.scanline = -1;
                 this.frameComplete = true;
+                // console.log(this.nametable);
                 this.display.update();
             }
         }
