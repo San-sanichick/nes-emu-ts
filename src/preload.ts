@@ -15,11 +15,11 @@ window.addEventListener("DOMContentLoaded", () => {
     const debugCanvas = document.querySelector("#debug-display") as HTMLCanvasElement;
     const debugDisplay = new DebugDisplay(debugCanvas, 400, 500);
 
-    const runBtn        = document.querySelector(".run-btn") as HTMLButtonElement;
-    const pauseBtn      = document.querySelector(".pause-btn") as HTMLButtonElement;
-    const singleStepBtn = document.querySelector(".single-step-btn") as HTMLButtonElement;
+    const runBtn         = document.querySelector(".run-btn") as HTMLButtonElement;
+    const pauseBtn       = document.querySelector(".pause-btn") as HTMLButtonElement;
+    const singleStepBtn  = document.querySelector(".single-step-btn") as HTMLButtonElement;
     const singleCycleBtn = document.querySelector(".single-cycle-btn") as HTMLButtonElement;
-    const resetBtn      = document.querySelector(".reset-btn") as HTMLButtonElement;
+    const resetBtn       = document.querySelector(".reset-btn") as HTMLButtonElement;
     
     const display = new Display(canvas);
     const bus     = new Bus();
@@ -31,9 +31,11 @@ window.addEventListener("DOMContentLoaded", () => {
     bus.reset();
     
     const drawDebug = () => {
-        debugDisplay.drawRam(asm, bus.getCPU.getPC, 15);
+        debugDisplay.drawRam(asm, bus.getCPU.getPC, 10);
         debugDisplay.drawCpuRegisters(bus.getCPU);
         debugDisplay.drawPPURegisters(bus.ppu);
+        debugDisplay.drawSprite(bus.ppu.getPatternTable(0, 0), 0, 320);
+        debugDisplay.drawSprite(bus.ppu.getPatternTable(1, 0), 130, 320);
     }
 
     drawDebug();

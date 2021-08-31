@@ -65,12 +65,19 @@ export default class DebugDisplay {
     }
 
     public drawPPURegisters(ppu: PPU): void {
-        const status = ppu.debugRead(0x2002 & 0x0007);
+        const ctrl    = ppu.debugRead(0x2000 & 0x0007);
+        const status  = ppu.debugRead(0x2002 & 0x0007);
+        const scroll  = ppu.debugRead(0x2005 & 0x0007);
+        const addr    = ppu.debugRead(0x2006 & 0x0007);
         const ppudata = ppu.debugRead(0x2007 & 0x0007);
 
         this.ctx.fillStyle = "black";
-        this.ctx.fillText(`PPUSTATUS: ${toHex(status, 4)}`, this.ppuOffsetX, this.ppuOffsetY);
-        this.ctx.fillText(`PPUSCROLL: ${toHex(ppudata, 4)}`, this.ppuOffsetX, this.ppuOffsetY + 10);
+        this.ctx.fillText(`PPUSTATUS: ${toHex(status, 2)}`,  this.ppuOffsetX,       this.ppuOffsetY);
+        this.ctx.fillText(`PPUSCROLL: ${toHex(scroll, 2)}`,  this.ppuOffsetX,       this.ppuOffsetY + 10);
+        this.ctx.fillText(`PPUCTRL:   ${toHex(ctrl, 2)}`,    this.ppuOffsetX + 120, this.ppuOffsetY);
+        this.ctx.fillText(`PPUDATA:   ${toHex(ppudata, 2)}`, this.ppuOffsetX + 120, this.ppuOffsetY + 10);
+        this.ctx.fillText(`PPUADDR:   ${toHex(addr, 2)}`,    this.ppuOffsetX + 240, this.ppuOffsetY);
+
     }
 
     public drawRam(ram: Map<number, string>, index: number, range: number): void {

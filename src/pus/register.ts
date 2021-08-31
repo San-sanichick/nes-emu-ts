@@ -90,8 +90,12 @@ export default class Register<T extends TypedArray> {
         this.data[0]--;
     }
 
-    public shiftLeft(): void {
-        this.data[0] <<= 1;
+    public shiftLeftBy(val: number): void {
+        this.data[0] <<= val;
+    }
+
+    public shiftRightBy(val: number): void {
+        this.data[0] >>= val;
     }
 
     public add(val: number): void {

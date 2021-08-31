@@ -308,7 +308,7 @@ export default class PPU {
        this.shiftAttribHigh.setReg(0x0000);
     }
 
-    private getPatternTable(patternTableIndex: number, palette: number): Sprite {
+    public getPatternTable(patternTableIndex: number, palette: number): Sprite {
         for (let tileX = 0; tileX < 16; tileX++) {
             for (let tileY = 0; tileY < 16; tileY++) {
                 const offset = tileY * 256 + tileX * 16;
@@ -450,14 +450,18 @@ export default class PPU {
             case 0x0000:
                 // write
                 this.PPUCTRL.setReg(val);
+                console.log(`Wrote to PPUCTRL: ${toHex(this.PPUCTRL.getValue, 2)}`);
+
 
                 this.tReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableX), IR.nametableX);
-                this.tReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableY), IR.nametableY)
+                this.tReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableY), IR.nametableY);
+                console.log(`tReg: ${toHex(this.tReg.getValue, 4)}`);
                 break;
             // write only
             case 0x0001:
                 // write
                 this.PPUMASK.setReg(val);
+                console.log(`Wrote to PPUMASK: ${toHex(this.PPUMASK.getValue, 2)}`);
                 break;
             // read only
             case 0x0002: break;
@@ -473,8 +477,8 @@ export default class PPU {
             case 0x0005:
                 // write
                 if (this.w === 0) {
-                    this.tReg.storeBits(val >> 3, IR.coarseX);
                     this.fineX = val & 0x07;
+                    this.tReg.storeBits(val >> 3, IR.coarseX);
 
                     this.w = 1;
                 } else if (this.w === 1) { // write again
@@ -492,7 +496,7 @@ export default class PPU {
                     // this.internalTReg.storeBits(val & 0x3F, 8, 6);
                     // ! in case upper doesn't work
                     this.tReg.setReg(((val & 0x3F) << 8) | this.tReg.getValue & 0x00FF);
-                    this.tReg.clearBit(15);
+                    // this.tReg.clearBit(15);
 
                     this.w = 1;
                 } else if (this.w === 1) { // write again
@@ -520,9 +524,7 @@ export default class PPU {
         address &= 0x3FFF;
 
         const temp = this.rom.ppuRead(address);
-        // console.log(address.toString(16));
         if (temp !== null) {
-            // console.log(temp.toString(16));
             data = temp;
         } else if (isInRange(address, 0x0000, 0x0FFF)) {
             // pattern table 1
@@ -534,35 +536,35 @@ export default class PPU {
             // nametables
             address &= 0x0FFF;
 
-            const temp = address & 0x03FF;
+            // const temp = address & 0x03FF;
             const mirroring = this.rom.getRomHeader.getMirroring;
 
             if (mirroring === Mirroring.VERTICAL) {
                 if (isInRange(address, 0x0000, 0x03FF)) {
-                    data = this.nametables[0][temp];
+                    data = this.nametables[0][address & 0x03FF];
                 }
                 if (isInRange(address, 0x0400, 0x07FF)) {
-                    data = this.nametables[1][temp];
+                    data = this.nametables[1][address & 0x03FF];
                 }
                 if (isInRange(address, 0x0800, 0x0BFF)) {
-                    data = this.nametables[0][temp];
+                    data = this.nametables[0][address & 0x03FF];
                 }
                 if (isInRange(address, 0x0C00, 0x0FFF)) {
-                    data = this.nametables[1][temp];
+                    data = this.nametables[1][address & 0x03FF];
                 }
 
             } else if (mirroring === Mirroring.HORIZONTAL) {
                 if (isInRange(address, 0x0000, 0x03FF)) {
-                    data = this.nametables[0][temp];
+                    data = this.nametables[0][address & 0x03FF];
                 }
                 if (isInRange(address, 0x0400, 0x07FF)) {
-                    data = this.nametables[0][temp];
+                    data = this.nametables[0][address & 0x03FF];
                 }
                 if (isInRange(address, 0x0800, 0x0BFF)) {
-                    data = this.nametables[1][temp];
+                    data = this.nametables[1][address & 0x03FF];
                 }
                 if (isInRange(address, 0x0C00, 0x0FFF)) {
-                    data = this.nametables[1][temp];
+                    data = this.nametables[1][address & 0x03FF];
                 }
             }
         }
@@ -596,35 +598,34 @@ export default class PPU {
         } else if (isInRange(address, 0x2000, 0x3EFF)) {
             // nametables
             address &= 0x0FFF;
-            const temp = address & 0x03FF;
             const mirroring = this.rom.getRomHeader.getMirroring;
 
             if (mirroring === Mirroring.VERTICAL) {
                 if (isInRange(address, 0x0000, 0x03FF)) {
-                    this.nametables[0][temp] = data;
+                    this.nametables[0][address & 0x03FF] = data;
                 }
                 if (isInRange(address, 0x0400, 0x07FF)) {
-                    this.nametables[1][temp] = data;
+                    this.nametables[1][address & 0x03FF] = data;
                 }
                 if (isInRange(address, 0x0800, 0x0BFF)) {
-                    this.nametables[0][temp] = data
+                    this.nametables[0][address & 0x03FF] = data
                 }
                 if (isInRange(address, 0x0C00, 0x0FFF)) {
-                    this.nametables[1][temp] = data;
+                    this.nametables[1][address & 0x03FF] = data;
                 }
 
             } else if (mirroring === Mirroring.HORIZONTAL) {
                 if (isInRange(address, 0x0000, 0x03FF)) {
-                    this.nametables[0][temp] = data;
+                    this.nametables[0][address & 0x03FF] = data;
                 }
                 if (isInRange(address, 0x0400, 0x07FF)) {
-                    this.nametables[0][temp] = data;
+                    this.nametables[0][address & 0x03FF] = data;
                 }
                 if (isInRange(address, 0x0800, 0x0BFF)) {
-                    this.nametables[1][temp] = data;
+                    this.nametables[1][address & 0x03FF] = data;
                 }
                 if (isInRange(address, 0x0C00, 0x0FFF)) {
-                    this.nametables[1][temp] = data;
+                    this.nametables[1][address & 0x03FF] = data;
                 }
             }
         }
@@ -650,7 +651,10 @@ export default class PPU {
                     this.vReg.storeBits(0, IR.coarseX);
                     // there's no real pretty way of doing this
                     const temp = this.vReg.getBit(IR.nametableX.pos);
-                    this.vReg.storeBit(IR.nametableX.pos, ~temp);
+
+                    const inverse = new Uint16Array(1);
+                    inverse[0] = ~temp;
+                    this.vReg.storeBit(IR.nametableX.pos, inverse[0]);
                 } else {
                     const temp = this.vReg.getBits(IR.coarseX);
                     this.vReg.storeBits(temp + 1, IR.coarseX);
@@ -673,12 +677,14 @@ export default class PPU {
                         this.vReg.storeBits(0, IR.coarseY);
 
                         const temp = this.vReg.getBit(IR.nametableY.pos);
-                        this.vReg.storeBit(IR.nametableY.pos, ~temp);
+                        const inverse = new Uint16Array(1);
+                        inverse[0] = ~temp;
+                        this.vReg.storeBit(IR.nametableY.pos, inverse[0]);
                     } else if (y === 31) {
                         this.vReg.storeBits(0, IR.coarseY);
                     } else {
-                        // const temp = this.vReg.getBits(IR.coarseY);
-                        this.vReg.storeBits(y + 1, IR.coarseY);
+                        const temp = this.vReg.getBits(IR.coarseY);
+                        this.vReg.storeBits(temp + 1, IR.coarseY);
                     }
                 }
             }
@@ -725,16 +731,16 @@ export default class PPU {
             this.shiftPatternHigh.setReg((this.shiftPatternHigh.getValue & 0xFF00) | this.tileMSB);
         
             this.shiftAttribLow.setReg((this.shiftPatternLow.getValue & 0xFF00) | ((this.tileAttr & 0b01) ? 0xFF : 0x00));
-            this.shiftAttribHigh.setReg((this.shiftAttribHigh.getValue & 0xFF00) | ((this.tileAttr & 0b01) ? 0xFF : 0x00));
+            this.shiftAttribHigh.setReg((this.shiftAttribHigh.getValue & 0xFF00) | ((this.tileAttr & 0b10) ? 0xFF : 0x00));
         }
 
         const updateShiftReg = (): void => {
             if (this.PPUMASK.getBit(PPUMASKFlag.b)) {
-                this.shiftPatternLow.shiftLeft();
-                this.shiftPatternHigh.shiftLeft();
+                this.shiftPatternLow.shiftLeftBy(1);
+                this.shiftPatternHigh.shiftLeftBy(1);
 
-                this.shiftAttribLow.shiftLeft();
-                this.shiftAttribHigh.shiftLeft();
+                this.shiftAttribLow.shiftLeftBy(1);
+                this.shiftAttribHigh.shiftLeftBy(1);
             }
         }
 
@@ -769,20 +775,20 @@ export default class PPU {
                         break;
                     }
 
-                    /*
-                        PPU addresses within the pattern tables can be decoded as follows:
-
-                        DCBA98 76543210
-                        ---------------
-                        0HRRRR CCCCPTTT
-                        |||||| |||||+++- T: Fine Y offset, the row number within a tile
-                        |||||| ||||+---- P: Bit plane (0: "lower"; 1: "upper")
-                        |||||| ++++----- C: Tile column
-                        ||++++---------- R: Tile row
-                        |+-------------- H: Half of sprite table (0: "left"; 1: "right")
-                        +--------------- 0: Pattern table is at $0000-$1FFF
-                    */
                     case 4: {
+                        /*
+                            PPU addresses within the pattern tables can be decoded as follows:
+    
+                            DCBA98 76543210
+                            ---------------
+                            0HRRRR CCCCPTTT
+                            |||||| |||||+++- T: Fine Y offset, the row number within a tile
+                            |||||| ||||+---- P: Bit plane (0: "lower"; 1: "upper")
+                            |||||| ++++----- C: Tile column
+                            ||++++---------- R: Tile row
+                            |+-------------- H: Half of sprite table (0: "left"; 1: "right")
+                            +--------------- 0: Pattern table is at $0000-$1FFF
+                        */
                         const patternTableIndex = this.PPUCTRL.getBit(PPUCTRLFlag.bckgTableAddr);
                         this.tileLSB = this.ppuRead((patternTableIndex << 12) 
                                                     + (this.tileID << 4) 
@@ -827,7 +833,6 @@ export default class PPU {
             if (this.scanline == 241 && this.cycle == 1) {
                 // we enter the blanking interval
                 this.PPUSTATUS.setBit(PPUSTATUSFlag.V);
-                console.log("BLANKING", toHex(this.debugRead(0x0002), 2));
 
                 if (this.PPUCTRL.getBit(PPUCTRLFlag.genNMI)) {
                     this.nmi = true;

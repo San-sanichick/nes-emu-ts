@@ -18,8 +18,8 @@ export class Sprite {
     }
 
     public setPixel(x: number, y: number, color: Pixel): void {
-        if (x > this.imgData.width) return;
-        if (y > this.imgData.height) return;
+        // if (x > this.imgData.width) return;
+        // if (y > this.imgData.height) return;
 
         // https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Pixel_manipulation_with_canvas
         const index = y * (this.imgData.width * 4) + x * 4;
@@ -50,7 +50,7 @@ export default class Display {
     private readonly width: number = 256;
     private readonly height: number = 240;
 
-    private frameBuffer: Uint32Array;
+    // private frameBuffer: Uint32Array;
     private imageData: ImageData;
     
     constructor(canvas: HTMLCanvasElement) {
@@ -58,14 +58,14 @@ export default class Display {
         this.ctx = this.canvas.getContext("2d", { alpha: false });
 
         this.imageData = this.ctx.createImageData(this.width, this.height);
-        this.frameBuffer = new Uint32Array(this.imageData.data.buffer);
+        // this.frameBuffer = new Uint32Array(this.imageData.data.buffer);
         
         this.canvas.width = this.width;
         this.canvas.height = this.height;
     }
 
     public drawPixel(x: number, y: number, color: Pixel): void {
-        if (x > this.width - 1 || y > this.height - 1) return;
+        // if (x > this.width - 1 || y > this.height - 1) return;
         const index = y * (this.width * 4) + x * 4;
         this.imageData.data[index + 0] = color.R;
         this.imageData.data[index + 1] = color.G;

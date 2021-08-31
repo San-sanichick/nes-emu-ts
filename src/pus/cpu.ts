@@ -824,9 +824,9 @@ export default class CPU {
         // this.absAddress = temp[0];
 
         this.PS.storeBit(StatusFlag.C, +(temp[0] > 255));
-        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x80));
         this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0));
         this.PS.storeBit(StatusFlag.V, (~(this.ACC.getValue ^ this.fetched) & (this.ACC.getValue ^ temp[0]) & 0x0080));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x80));
 
         this.ACC.setReg(temp[0] & 0x00FF);
 
@@ -1106,9 +1106,9 @@ export default class CPU {
         temp[0] = this.ACC.getValue - this.fetched;
         // const temp = ;
 
-        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x0080));
-        this.PS.storeBit(StatusFlag.C, +(temp[0] > this.fetched));
+        this.PS.storeBit(StatusFlag.C, +(this.ACC.getValue >= this.fetched));
         this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0x0000));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x0080));
 
         return 1;
     }
@@ -1122,9 +1122,9 @@ export default class CPU {
         const temp: Uint16Array = new Uint16Array(1);
         temp[0] = this.IRX.getValue - this.fetched;
 
-        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x0080));
-        this.PS.storeBit(StatusFlag.C, +(temp[0] > this.fetched));
+        this.PS.storeBit(StatusFlag.C, +(this.IRX.getValue >= this.fetched));
         this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0x0000));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x0080));
         return 0;
     }
 
@@ -1137,9 +1137,9 @@ export default class CPU {
         const temp: Uint16Array = new Uint16Array(1);
         temp[0] = this.IRY.getValue - this.fetched;
 
-        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x0080));
-        this.PS.storeBit(StatusFlag.C, +(temp[0] > this.fetched));
+        this.PS.storeBit(StatusFlag.C, +(this.IRY.getValue >= this.fetched));
         this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0x0000));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x0080));
         return 0;
     }
 
@@ -1341,8 +1341,8 @@ export default class CPU {
      */
     private PHP(): number {
         this.writeToMemory(0x0100 + this.SP.getValue, this.PS.getValue);
-        this.SP.setBit(StatusFlag.B);
-        this.SP.setBit(5);
+        this.PS.setBit(StatusFlag.B);
+        this.PS.setBit(5);
         this.SP.decr();
         return 0;
     }
@@ -1374,16 +1374,17 @@ export default class CPU {
     private ROL(): number {
         this.fetched = this.loadFromMemory();
         
-        const temp = this.fetched << 1 | this.PS.getBit(StatusFlag.C);
+        const temp = new Uint16Array(1);
+        temp[0] = this.fetched << 1 | this.PS.getBit(StatusFlag.C);
 
         this.PS.storeBit(StatusFlag.C, this.fetched & 0x0001);
-        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x0080));
-        this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0x0000));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x0080));
+        this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0x0000));
 
         if (this.operations[this.opcode].addrMode === AddressingMode.IMM) {
-            this.ACC.setReg(temp & 0x00FF);
+            this.ACC.setReg(temp[0] & 0x00FF);
         } else {
-            this.bus.write(this.absAddress, temp & 0x00FF);
+            this.bus.write(this.absAddress, temp[0] & 0x00FF);
         }
 
         return 0;
@@ -1449,10 +1450,10 @@ export default class CPU {
         temp[0] = this.ACC.getValue + val + this.PS.getBit(StatusFlag.C);
         // const temp = 
 
-        this.PS.storeBit(StatusFlag.C, +(temp[0] > 255));
-        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x80));
+        this.PS.storeBit(StatusFlag.C, +(temp[0] & 0xFF00));
         this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0));
-        this.PS.storeBit(StatusFlag.V, ((this.ACC.getValue ^ this.fetched) & (this.ACC.getValue ^ temp[0]) & 0x0080));
+        this.PS.storeBit(StatusFlag.V, ((temp[0] ^ this.ACC.getValue) & (temp[0] ^ val) & 0x0080));
+        this.PS.storeBit(StatusFlag.N, +!!(temp[0] & 0x0080));
 
         this.ACC.setReg(temp[0] & 0x00FF);
         return 1;
