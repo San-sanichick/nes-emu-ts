@@ -2,6 +2,7 @@
 // It has the same sandbox as a Chrome extension.
 import { readFileSync } from "original-fs";
 import Bus from "./bus";
+import Pad from "./pad";
 import CPU from "./pus/cpu";
 // import Pad from "./pad";
 import ROM from "./rom/rom";
@@ -24,6 +25,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const display = new Display(canvas);
     const bus     = new Bus();
     const rom     = new ROM(readFileSync("./roms/nestest.nes"));
+    const pad     = new Pad();
     bus.connectRom(rom);
     bus.connectDisplay(display);
     let run: boolean = false;
@@ -42,17 +44,27 @@ window.addEventListener("DOMContentLoaded", () => {
 
     const update = (): void => {
         const t = performance.now();
+        pad.updateButtonState(navigator.getGamepads()[0]);
+        bus.controller[0] = 0x00;
+        bus.controller[0] |= pad.getButtonsState.A      ? 0x80 : 0x00;
+        bus.controller[0] |= pad.getButtonsState.B      ? 0x40 : 0x00;
+        bus.controller[0] |= pad.getButtonsState.select ? 0x20 : 0x00;
+        bus.controller[0] |= pad.getButtonsState.start  ? 0x10 : 0x00;
+        bus.controller[0] |= pad.getButtonsState.up     ? 0x08 : 0x00;
+        bus.controller[0] |= pad.getButtonsState.down   ? 0x04 : 0x00;
+        bus.controller[0] |= pad.getButtonsState.left   ? 0x02 : 0x00;
+        bus.controller[0] |= pad.getButtonsState.right  ? 0x01 : 0x00;
         // complete the frame
         do {
             bus.clock();
         } while (!bus.ppu.frameComplete);
-
-        drawDebug();
+        bus.ppu.frameComplete = false;
 
         const tComplete = performance.now() - t;
         fpsDisplay.textContent = `${(1000 / fastRounding(tComplete)).toFixed(0)} fps`;
 
-        bus.ppu.frameComplete = false;
+        drawDebug();
+
         if (run) {
             requestAnimationFrame(update);
         }

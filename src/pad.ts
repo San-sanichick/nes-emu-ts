@@ -9,6 +9,9 @@ export default class Pad {
     private buttonA: boolean;
     private buttonB: boolean;
 
+    private select: boolean;
+    private start: boolean;
+
     constructor() {
         this.gamepad = null;
     }
@@ -17,12 +20,14 @@ export default class Pad {
         this.gamepad = gamepad;
     }
 
-    public get getButtonsState(): { up: boolean, down: boolean, left: boolean, right: boolean, A: boolean, B: boolean } {
+    public get getButtonsState(): { up: boolean, down: boolean, left: boolean, right: boolean, select: boolean, start: boolean, A: boolean, B: boolean } {
         return { 
             up: this.up, 
             down: this.down, 
             left: this.left, 
             right: this.right, 
+            select: this.select,
+            start: this.start,
             A: this.buttonA, 
             B: this.buttonB 
         };
@@ -33,6 +38,9 @@ export default class Pad {
         if (this.gamepad) {
             this.buttonA = this.gamepad.buttons[1].pressed;
             this.buttonB = this.gamepad.buttons[0].pressed;
+
+            this.select  = this.gamepad.buttons[8].pressed;
+            this.start   = this.gamepad.buttons[9].pressed;
 
             this.down    = this.gamepad.buttons[13].pressed;
             this.up      = this.gamepad.buttons[12].pressed;

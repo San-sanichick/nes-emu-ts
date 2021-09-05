@@ -14,6 +14,8 @@ export default class Bus {
     public ppu: PPU;
 
     private systemClock: number = 0;
+    public controller: Uint8Array = new Uint8Array(2);
+    private controllerState: Uint8Array = new Uint8Array(2);
 
     constructor() {
         this.cpu = new CPU();
@@ -87,7 +89,7 @@ export default class Bus {
 
         // NES APU and I/O registers
         else if (isInRange(address, 0x4000, 0x4017)) {
-            // val = 3;
+            this.controllerState[address & 0x00001] = this.controller[address & 0x0001];
         }
 
         // APU and I/O functionality that is normally disabled
@@ -97,28 +99,29 @@ export default class Bus {
     }
 
     public read(address: number): number {
-        let val = 0x00;
+        let data = 0x00;
 
         // cartridge
         const temp = this.rom.cpuRead(address);
         if (temp !== null) {
-            val = temp;
+            data = temp;
         }
         // 2KB internal RAM
         // 0x0800-0x0FFF, 0x1000-0x17FF and 0x1800-0x1FFF mirror 0x0000-0x07FF
         else if (isInRange(address, 0x0000, 0x1FFF)) {
-            val = this.cpuRAM[address & 0x07FF];
+            data = this.cpuRAM[address & 0x07FF];
         }
 
         // PPU registers
         // Mirrors of 0x2000-0x2007 (repeats every 8 bytes) 
         else if (isInRange(address, 0x2000, 0x3FFF)) {
-            val = this.ppu.cpuRead(address & 0x0007);
+            data = this.ppu.cpuRead(address & 0x0007);
         }
 
         // NES APU and I/O registers
         else if (isInRange(address, 0x4000, 0x4017)) {
-            //
+            data = +((this.controllerState[address & 0x0001] & 0x80) > 0);
+            this.controllerState[address & 0x0001] <<= 1;
         }
 
         // APU and I/O functionality that is normally disabled
@@ -126,7 +129,7 @@ export default class Bus {
             //
         }
 
-        return val;
+        return data;
     }
 
     public debugRead(address: number): number {

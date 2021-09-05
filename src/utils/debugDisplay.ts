@@ -94,7 +94,7 @@ export default class DebugDisplay {
             }
             this.ctx.fillStyle = "black";
             if (i === index) this.ctx.fillStyle = "red";
-            this.ctx.fillText(`${toHex(i, 4)}: ${item}`, this.ramOffsetX, this.ramOffsetY + j * 10);
+            this.ctx.fillText(item, this.ramOffsetX, this.ramOffsetY + j * 10);
         }
     }
 

@@ -1,4 +1,4 @@
-import { isInRange, toBinary } from "../utils/utils";
+import { isInRange } from "../utils/utils";
 import Display, { Pixel, Sprite } from "../utils/display";
 import Register from "./register";
 import ROM from "../rom/rom";
@@ -667,9 +667,6 @@ export default class PPU {
         /**
          * Coarse Y increment
          */
-        // ISSUE this function seemingly doesn't work properly
-        // ISSUE either that or something somewhere constantly resets
-        // ISSUE vReg to 0
         const incrScrollY = (): void => {
             if (this.PPUMASK.getBit(PPUMASKFlag.b) || this.PPUMASK.getBit(PPUMASKFlag.s)) {
                 if (this.vReg.getBits(IR.fineY) < 7) {
