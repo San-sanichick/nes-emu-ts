@@ -1,4 +1,4 @@
-import { to8bitBinary } from "../utils/utils";
+import { toBinary } from "../utils/utils";
 
 
 interface Flags6 {
@@ -59,13 +59,13 @@ export default class RomHeader {
         this.constantNES = new Uint8Array(this.headerData.subarray(0, 4));
         this.PRG_ROM_size = this.headerData[4];          // Size of PRG ROM in 16 KB units
         this.CHR_ROM_size = this.headerData[5];          // Size of CHR ROM in 8 KB units (Value 0 means the board uses CHR RAM)
-        this.flags6 = to8bitBinary(this.headerData[6]);  // these are the only flags that matter
+        this.flags6 = toBinary(this.headerData[6], 8);  // these are the only flags that matter
         
         // ignore these for now
-        this.flags7 = to8bitBinary(this.headerData[7]);
-        this.flags8 = to8bitBinary(this.headerData[8]);
-        this.flags9 = to8bitBinary(this.headerData[9]);
-        this.flags10 = to8bitBinary(this.headerData[10]);
+        this.flags7 = toBinary(this.headerData[7], 8);
+        this.flags8 = toBinary(this.headerData[8], 8);
+        this.flags9 = toBinary(this.headerData[9], 8);
+        this.flags10 = toBinary(this.headerData[10], 8);
 
         this.flag6obj = this.parseFlags6();
         this.flag7obj = this.parseFlags7();

@@ -1,4 +1,4 @@
-import { isInRange } from "../utils/utils";
+import { isInRange, toBinary } from "../utils/utils";
 import Display, { Pixel, Sprite } from "../utils/display";
 import Register from "./register";
 import ROM from "../rom/rom";
@@ -479,6 +479,7 @@ export default class PPU {
                 if (this.w === 0) {
                     this.fineX = data & 0x07;
                     this.tReg.storeBits(data >> 3, IR.coarseX);
+                    // console.log(`tReg: ${toHex(this.tReg.getValue, 4)}`);
 
                     this.w = 1;
                 } else if (this.w === 1) { // write again
@@ -493,14 +494,20 @@ export default class PPU {
             case 0x0006:
                 // write
                 if (this.w === 0) {
-                    // this.internalTReg.storeBits(val & 0x3F, 8, 6);
+                    // console.log(`tReg init: ${toBinary(this.tReg.getValue, 16)}`);
+                    this.tReg.storeBits(data, 8, 6);
+                    // console.log(`tReg: ${toBinary(this.tReg.getValue, 16)}`);
+
                     // ! in case upper doesn't work
-                    this.tReg.setReg(((data & 0x3F) << 8) | this.tReg.getValue & 0x00FF);
+                    // this.tReg.setReg(((data & 0x3F) << 8) | this.tReg.getValue & 0x00FF);
+
                     // this.tReg.clearBit(15);
 
                     this.w = 1;
                 } else if (this.w === 1) { // write again
                     this.tReg.setReg((this.tReg.getValue & 0xFF00) | data);
+                    // console.log(`tReg: ${toHex(this.tReg.getValue, 4)}`);
+
                     this.vReg.setReg(this.tReg.getValue);
 
                     this.w = 0;
@@ -645,13 +652,14 @@ export default class PPU {
         /**
          * Coarse X increment
          */
+
         const incrScrollX = (): void => {
             if (this.PPUMASK.getBit(PPUMASKFlag.b) || this.PPUMASK.getBit(PPUMASKFlag.s)) {
                 if (this.vReg.getBits(IR.coarseX) === 31) {
                     this.vReg.storeBits(0, IR.coarseX);
                     // there's no real pretty way of doing this
                     const temp = this.vReg.getBit(IR.nametableX.pos);
-
+                    
                     const inverse = new Uint16Array(1);
                     inverse[0] = ~temp;
                     this.vReg.storeBit(IR.nametableX.pos, inverse[0]);
@@ -661,10 +669,13 @@ export default class PPU {
                 }
             }
         }
-
+        
         /**
          * Coarse Y increment
          */
+        // ISSUE this function seemingly doesn't work properly
+        // ISSUE either that or something somewhere constantly resets
+        // ISSUE vReg to 0
         const incrScrollY = (): void => {
             if (this.PPUMASK.getBit(PPUMASKFlag.b) || this.PPUMASK.getBit(PPUMASKFlag.s)) {
                 // console.log(this.vReg.getValue);

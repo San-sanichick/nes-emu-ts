@@ -59,9 +59,7 @@ export default class Register<T extends TypedArray> {
     
     public storeBit(pos: number, val: number): void {
         const mask = ~(1 << pos);
-        this.data[0] &= mask;
-        val <<= pos;
-        this.data[0] |= val;
+        this.data[0] = this.data[0] & mask | (val << pos);
     }
 
     public storeBits(val: number, pos: number, width: number): void;
@@ -70,12 +68,13 @@ export default class Register<T extends TypedArray> {
         if (typeof pos === "number" && width !== undefined) {
             const mask = (1 << width) - 1;
             val &= mask;
-            this.data[0] &= (~(mask << width) | (val << width));
+            this.data[0] = this.data[0] & ~(mask << pos) | (val << pos);
         } else if (typeof pos !== "number" && width === undefined) {
             const mask = (1 << pos.width) - 1;
             val &= mask;
-            this.data[0] &= (~(mask << pos.width) | (val << pos.width));
+            this.data[0] = this.data[0] & ~(mask << pos.pos) | (val << pos.pos);
         }
+
     }
 
     public setReg(newVal: number): void {

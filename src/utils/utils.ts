@@ -1,5 +1,6 @@
-export function to8bitBinary(num: number): string {
-    return ("00000000" + num.toString(2)).slice(-8);
+export function toBinary(num: number, padding: number): string {
+    // return ("00000000" + num.toString(2)).slice(-8);
+    return "0b" + num.toString(2).padStart(padding, "0");
 }
 
 export function toHex(num: number, padding: number): string {
