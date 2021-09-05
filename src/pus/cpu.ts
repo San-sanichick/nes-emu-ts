@@ -111,6 +111,7 @@ export default class CPU {
         this.BCC = this.BCC.bind(this);
         this.BCS = this.BCS.bind(this);
         this.BEQ = this.BEQ.bind(this);
+        this.BIT = this.BIT.bind(this);
         this.BMI = this.BMI.bind(this);
         this.BNE = this.BNE.bind(this);
         this.BPL = this.BPL.bind(this);
@@ -144,6 +145,7 @@ export default class CPU {
         this.PLA = this.PLA.bind(this);
         this.PLP = this.PLP.bind(this);
         this.ROL = this.ROL.bind(this);
+        this.ROR = this.ROR.bind(this);
         this.RTI = this.RTI.bind(this);
         this.RTS = this.RTS.bind(this);
         this.SBC = this.SBC.bind(this);

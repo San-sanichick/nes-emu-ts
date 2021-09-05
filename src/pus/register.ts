@@ -77,6 +77,15 @@ export default class Register<T extends TypedArray> {
 
     }
 
+    public toggleBit(pos: number): void {
+        const bit = this.getBit(pos);
+        if (bit) {
+            this.clearBit(pos);
+        } else {
+            this.setBit(pos);
+        }
+    } 
+
     public setReg(newVal: number): void {
         this.data[0] = newVal;
     }

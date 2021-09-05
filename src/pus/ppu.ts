@@ -192,14 +192,14 @@ export default class PPU {
     private spritePatternTable: Sprite[] = [ new Sprite(128, 128), new Sprite(128, 128) ];
     private spriteNameTable:    Sprite[] = [ new Sprite(256, 240), new Sprite(256, 240) ];
 
-    private shiftPatternLow:  Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
-    private shiftPatternHigh: Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
+    private shiftPatternLo:  Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
+    private shiftPatternHi: Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
 
     // the nesdev wiki clearly states that these are 8-bit registers
     // but everyone makes them 16-bit, and I fucking give up trying to
     // figure out why that's the case
-    private shiftAttribLow:  Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
-    private shiftAttribHigh: Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
+    private shiftAttribLo:  Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
+    private shiftAttribHi: Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
 
     private tileID: number = 0x00;
     private tileAttr: number = 0x00;
@@ -280,10 +280,10 @@ export default class PPU {
         this.tileAttr = 0x00;
         this.tileMSB = 0x00;
         this.tileLSB = 0x00;
-        this.shiftPatternLow.setReg(0x0000);
-        this.shiftPatternHigh.setReg(0x0000);
-        this.shiftAttribLow.setReg(0x0000);
-        this.shiftAttribHigh.setReg(0x0000);
+        this.shiftPatternLo.setReg(0x0000);
+        this.shiftPatternHi.setReg(0x0000);
+        this.shiftAttribLo.setReg(0x0000);
+        this.shiftAttribHi.setReg(0x0000);
     }
 
     public reset(): void {
@@ -302,10 +302,10 @@ export default class PPU {
        this.tileAttr = 0x00;
        this.tileMSB = 0x00;
        this.tileLSB = 0x00;
-       this.shiftPatternLow.setReg(0x0000);
-       this.shiftPatternHigh.setReg(0x0000);
-       this.shiftAttribLow.setReg(0x0000);
-       this.shiftAttribHigh.setReg(0x0000);
+       this.shiftPatternLo.setReg(0x0000);
+       this.shiftPatternHi.setReg(0x0000);
+       this.shiftAttribLo.setReg(0x0000);
+       this.shiftAttribHi.setReg(0x0000);
     }
 
     public getPatternTable(patternTableIndex: number, palette: number): Sprite {
@@ -452,7 +452,6 @@ export default class PPU {
                 this.PPUCTRL.setReg(data);
                 // console.log(`Wrote to PPUCTRL: ${toHex(this.PPUCTRL.getValue, 2)}`);
 
-
                 this.tReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableX), IR.nametableX);
                 this.tReg.storeBits(this.PPUCTRL.getBit(PPUCTRLFlag.nametableY), IR.nametableY);
                 // console.log(`tReg: ${toHex(this.tReg.getValue, 4)}`);
@@ -479,7 +478,6 @@ export default class PPU {
                 if (this.w === 0) {
                     this.fineX = data & 0x07;
                     this.tReg.storeBits(data >> 3, IR.coarseX);
-                    // console.log(`tReg: ${toHex(this.tReg.getValue, 4)}`);
 
                     this.w = 1;
                 } else if (this.w === 1) { // write again
@@ -494,19 +492,17 @@ export default class PPU {
             case 0x0006:
                 // write
                 if (this.w === 0) {
-                    // console.log(`tReg init: ${toBinary(this.tReg.getValue, 16)}`);
                     this.tReg.storeBits(data, 8, 6);
-                    // console.log(`tReg: ${toBinary(this.tReg.getValue, 16)}`);
+                    // this.tReg.clearBit(15);
 
                     // ! in case upper doesn't work
-                    // this.tReg.setReg(((data & 0x3F) << 8) | this.tReg.getValue & 0x00FF);
+                    // this.tReg.setReg(((data & 0x3F) << 8) | (this.tReg.getValue & 0x00FF));
 
-                    // this.tReg.clearBit(15);
 
                     this.w = 1;
                 } else if (this.w === 1) { // write again
-                    this.tReg.setReg((this.tReg.getValue & 0xFF00) | data);
-                    // console.log(`tReg: ${toHex(this.tReg.getValue, 4)}`);
+                    // this.tReg.setReg((this.tReg.getValue & 0xFF00) | data);
+                    this.tReg.storeBits(data, 0, 8);
 
                     this.vReg.setReg(this.tReg.getValue);
 
@@ -658,11 +654,9 @@ export default class PPU {
                 if (this.vReg.getBits(IR.coarseX) === 31) {
                     this.vReg.storeBits(0, IR.coarseX);
                     // there's no real pretty way of doing this
-                    const temp = this.vReg.getBit(IR.nametableX.pos);
-                    
-                    const inverse = new Uint16Array(1);
-                    inverse[0] = ~temp;
-                    this.vReg.storeBit(IR.nametableX.pos, inverse[0]);
+                    // const temp = this.vReg.getBit(IR.nametableX.pos);
+                    // this.vReg.storeBit(IR.nametableX.pos, ~temp);
+                    this.vReg.toggleBit(IR.nametableX.pos);
                 } else {
                     const temp = this.vReg.getBits(IR.coarseX);
                     this.vReg.storeBits(temp + 1, IR.coarseX);
@@ -678,22 +672,19 @@ export default class PPU {
         // ISSUE vReg to 0
         const incrScrollY = (): void => {
             if (this.PPUMASK.getBit(PPUMASKFlag.b) || this.PPUMASK.getBit(PPUMASKFlag.s)) {
-                // console.log(this.vReg.getValue);
                 if (this.vReg.getBits(IR.fineY) < 7) {
-                    
                     const temp = this.vReg.getBits(IR.fineY);
                     this.vReg.storeBits(temp + 1, IR.fineY);
-                    // console.log(temp);
                 } else {
                     this.vReg.storeBits(0, IR.fineY);
+
                     const y = this.vReg.getBits(IR.coarseY);
                     if (y === 29) {
                         this.vReg.storeBits(0, IR.coarseY);
-
-                        const temp = this.vReg.getBit(IR.nametableY.pos);
-                        const inverse = new Uint16Array(1);
-                        inverse[0] = ~temp;
-                        this.vReg.storeBit(IR.nametableY.pos, inverse[0]);
+                        
+                        this.vReg.toggleBit(IR.nametableY.pos);
+                        // const temp = this.vReg.getBit(IR.nametableY.pos);
+                        // this.vReg.storeBit(IR.nametableY.pos, inverse[0]);
                     } else if (y === 31) {
                         this.vReg.storeBits(0, IR.coarseY);
                     } else {
@@ -716,8 +707,8 @@ export default class PPU {
                     tempCoarseX    = this.tReg.getBits(IR.coarseX),
                     tempNametableX = this.tReg.getBits(IR.nametableX);
     
-                this.vReg.storeBits(tempCoarseX, IR.coarseX);
-                this.vReg.storeBits(tempNametableX, IR.nametableX);
+                    this.vReg.storeBits(tempNametableX, IR.nametableX);
+                    this.vReg.storeBits(tempCoarseX, IR.coarseX);
             }
         }
 
@@ -734,27 +725,27 @@ export default class PPU {
                     tempFineY      = this.tReg.getBits(IR.fineY),
                     tempNametableY = this.tReg.getBits(IR.nametableY);
     
-                this.vReg.storeBits(tempCoarseY, IR.coarseY);
                 this.vReg.storeBits(tempFineY, IR.fineY);
                 this.vReg.storeBits(tempNametableY, IR.nametableY);
+                this.vReg.storeBits(tempCoarseY, IR.coarseY);
             }
         }
 
         const loadBckgShiftReg = (): void => {
-            this.shiftPatternLow.setReg((this.shiftPatternLow.getValue & 0xFF00) | this.tileLSB);
-            this.shiftPatternHigh.setReg((this.shiftPatternHigh.getValue & 0xFF00) | this.tileMSB);
+            this.shiftPatternLo.setReg((this.shiftPatternLo.getValue & 0xFF00) | this.tileLSB);
+            this.shiftPatternHi.setReg((this.shiftPatternHi.getValue & 0xFF00) | this.tileMSB);
         
-            this.shiftAttribLow.setReg((this.shiftPatternLow.getValue & 0xFF00) | ((this.tileAttr & 0b01) ? 0xFF : 0x00));
-            this.shiftAttribHigh.setReg((this.shiftAttribHigh.getValue & 0xFF00) | ((this.tileAttr & 0b10) ? 0xFF : 0x00));
+            this.shiftAttribLo.setReg((this.shiftAttribLo.getValue & 0xFF00) | ((this.tileAttr & 0b01) ? 0xFF : 0x00));
+            this.shiftAttribHi.setReg((this.shiftAttribHi.getValue & 0xFF00) | ((this.tileAttr & 0b10) ? 0xFF : 0x00));
         }
 
         const updateShiftReg = (): void => {
             if (this.PPUMASK.getBit(PPUMASKFlag.b)) {
-                this.shiftPatternLow.shiftLeftBy(1);
-                this.shiftPatternHigh.shiftLeftBy(1);
+                this.shiftPatternLo.shiftLeftBy(1);
+                this.shiftPatternHi.shiftLeftBy(1);
 
-                this.shiftAttribLow.shiftLeftBy(1);
-                this.shiftAttribHigh.shiftLeftBy(1);
+                this.shiftAttribLo.shiftLeftBy(1);
+                this.shiftAttribHi.shiftLeftBy(1);
             }
         }
 
@@ -864,13 +855,13 @@ export default class PPU {
 
             // I could just convert it into a number, but I don't trust JS at all
             // if (this.scanline === 50) console.log(this.shiftPatternHigh.getValue)
-            const p0 = +((this.shiftPatternLow.getValue  & bitMux) > 0);
-            const p1 = +((this.shiftPatternHigh.getValue & bitMux) > 0);
+            const p0 = +((this.shiftPatternLo.getValue  & bitMux) > 0);
+            const p1 = +((this.shiftPatternHi.getValue & bitMux) > 0);
 
             bckgPixel = (p1 << 1) | p0;
 
-            const palette0 = +((this.shiftAttribLow.getValue  & bitMux) > 0);
-            const palette1 = +((this.shiftAttribHigh.getValue & bitMux) > 0);
+            const palette0 = +((this.shiftAttribLo.getValue  & bitMux) > 0);
+            const palette1 = +((this.shiftAttribHi.getValue & bitMux) > 0);
 
             bckgPalette = (palette1 << 1) | palette0;
         }
