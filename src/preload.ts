@@ -22,7 +22,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const singleCycleBtn = document.querySelector(".single-cycle-btn") as HTMLButtonElement;
     const resetBtn       = document.querySelector(".reset-btn") as HTMLButtonElement;
     
-    const display = new Display(canvas);
+    const display = new Display(canvas, 1);
     const bus     = new Bus();
     const rom     = new ROM(readFileSync("./roms/nestest.nes"));
     const pad     = new Pad();
@@ -36,6 +36,7 @@ window.addEventListener("DOMContentLoaded", () => {
         debugDisplay.drawRam(asm, bus.getCPU.getPC, 10);
         debugDisplay.drawCpuRegisters(bus.getCPU);
         debugDisplay.drawPPURegisters(bus.ppu);
+        debugDisplay.drawControllerInput(bus);
         debugDisplay.drawSprite(bus.ppu.getPatternTable(0, 0), 0, 320);
         debugDisplay.drawSprite(bus.ppu.getPatternTable(1, 0), 130, 320);
     }

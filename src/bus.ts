@@ -2,7 +2,7 @@ import CPU from "./pus/cpu";
 import PPU from "./pus/ppu";
 import ROM from "./rom/rom";
 import Display from "./utils/display";
-import { isInRange } from "./utils/utils";
+import { isInRange, toHex } from "./utils/utils";
 
 export default class Bus {
     /** Cartridge ROM */
@@ -22,6 +22,8 @@ export default class Bus {
         this.cpu.connectBus(this);
         this.ppu = new PPU();
         this.rom = null;
+
+        // console.log(this.controllerState, this.controller)
     }
 
     get ram(): Uint8Array {
@@ -30,6 +32,10 @@ export default class Bus {
 
     get getCPU(): CPU {
         return this.cpu;
+    }
+
+    get getControllerState(): Uint8Array {
+        return this.controllerState;
     }
 
     public connectRom(rom: ROM): void {
@@ -68,29 +74,35 @@ export default class Bus {
         }
     }
 
-    public write(address: number, val: number): void {
+    public write(address: number, data: number): void {
         // cartridge
-        if (this.rom.cpuWrite(address, val)) {
+        if (this.rom.cpuWrite(address, data)) {
             // be happy
         }
         // 2KB internal RAM
         // 0x0800-0x0FFF, 
         // 0x1000-0x17FF and 0x1800-0x1FFF mirror 0x0000-0x07FF
         else if (isInRange(address, 0x0000, 0x1FFF)) {
-            this.cpuRAM[address & 0x07FF] = val;
+            this.cpuRAM[address & 0x07FF] = data;
         }
 
         // PPU registers
         // Mirrors of 0x2000-0x2007 (repeats every 8 bytes) 
         else if (isInRange(address, 0x2000, 0x3FFF)) {
             // val = 1;
-            this.ppu.cpuWrite(address & 0x0007, val)
+            this.ppu.cpuWrite(address & 0x0007, data)
         }
 
         // NES APU and I/O registers
-        else if (isInRange(address, 0x4000, 0x4017)) {
-            this.controllerState[address & 0x00001] = this.controller[address & 0x0001];
+        else if (isInRange(address, 0x4000, 0x4013) || address === 0x4015 || address === 0x4017) {
+            // data = +((this.controllerState[address & 0x0001] & 0x80) > 0);
+            // this.controllerState[address & 0x0001] <<= 1;
         }
+
+        else if (isInRange(address, 0x4016, 0x4017)) {
+            this.controllerState[address & 0x0001] = this.controller[address & 0x0001];
+        }
+
 
         // APU and I/O functionality that is normally disabled
         else if (isInRange(address, 0x4018, 0x401F)) {
@@ -119,7 +131,41 @@ export default class Bus {
         }
 
         // NES APU and I/O registers
-        else if (isInRange(address, 0x4000, 0x4017)) {
+        else if (address === 0x4015) {
+            //
+        }
+
+        // ISSUE something doesn't work quite right here
+        /*
+            Here's how this is supposed to work:
+            The controller state is being read 8 times.
+            Each read coressponds to a button on a controller.
+            0 - A
+            1 - B
+            2 - Select
+            3 - Start
+            4 - Up
+            5 - Down
+            6 - Left
+            7 - Right
+            We assigned a value to each button as follows:
+            A       = 0x80
+            B       = 0x40
+            Select  = 0x20
+            Start   = 0x10
+            Up      = 0x08
+            Down    = 0x04
+            Left    = 0x02
+            Right   = 0x01
+            Each time we read, we shift the current value to the left, thus doubling it.
+            So if we pressed, say, left, the value would be 0x02, but after 6 reads it would become
+            0x80, and, when ANDed with 0x80, would produce 1.
+            
+            But it doesn't happen, cos somewhere along the line this son of a bitch gets reset.
+            Also, what happens, is that the first good input gets picked up instead.
+            So the A button is 0x80 immediately, and that gets accepted. Why? I dunno. Maybe you do.
+        */
+        else if (isInRange(address, 0x4016, 0x4017)) {
             data = +((this.controllerState[address & 0x0001] & 0x80) > 0);
             this.controllerState[address & 0x0001] <<= 1;
         }
@@ -133,28 +179,33 @@ export default class Bus {
     }
 
     public debugRead(address: number): number {
-        let val = 0x00;
+        let data = 0x00;
 
         // cartridge
         const temp = this.rom.cpuRead(address);
         if (temp !== null) {
-            val = temp;
+            data = temp;
         }
         // 2KB internal RAM
         // 0x0800-0x0FFF, 0x1000-0x17FF and 0x1800-0x1FFF mirror 0x0000-0x07FF
         else if (isInRange(address, 0x0000, 0x1FFF)) {
-            val = this.cpuRAM[address & 0x07FF];
+            data = this.cpuRAM[address & 0x07FF];
         }
 
         // PPU registers
         // Mirrors of 0x2000-0x2007 (repeats every 8 bytes) 
         else if (isInRange(address, 0x2000, 0x3FFF)) {
-            val = this.ppu.debugRead(address & 0x0007);
+            data = this.ppu.debugRead(address & 0x0007);
         }
 
         // NES APU and I/O registers
-        else if (isInRange(address, 0x4000, 0x4017)) {
-            //
+        else if (isInRange(address, 0x4000, 0x4013) || address === 0x4015 || address === 0x4017) {
+            // data = +((this.controllerState[address & 0x0001] & 0x80) > 0);
+            // this.controllerState[address & 0x0001] <<= 1;
+        }
+
+        else if (isInRange(address, 0x4016, 0x4017)) {
+            data = +((this.controllerState[address & 0x0001] & 0x80) > 0);
         }
 
         // APU and I/O functionality that is normally disabled
@@ -162,7 +213,7 @@ export default class Bus {
             //
         }
 
-        return val;
+        return data;
     }
 
     public clock(): void {

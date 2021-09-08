@@ -3,6 +3,7 @@ import CPU from "../pus/cpu";
 import { toHex } from "./utils";
 import PPU from "../pus/ppu";
 import { Sprite } from "./display";
+import Bus from "../bus";
 
 export default class DebugDisplay {
     private canvas: HTMLCanvasElement;
@@ -54,10 +55,11 @@ export default class DebugDisplay {
                 {f: "N", val: ps.getBit(7)},
             ];
 
+            this.ctx.fillText("Flags: ", this.cpuOffsetX, this.cpuOffsetY * 2);
             for (let i = 0; i < 8; i++) {
                 this.ctx.fillStyle = psArr[i].val ? "red" : "black";
 
-                this.ctx.fillText(psArr[i].f, this.cpuOffsetX + 10 * i, this.cpuOffsetY * 2);
+                this.ctx.fillText(psArr[i].f, this.cpuOffsetX + 40 + 10 * i, this.cpuOffsetY * 2);
             }
         }
 
@@ -96,6 +98,17 @@ export default class DebugDisplay {
             if (i === index) this.ctx.fillStyle = "red";
             this.ctx.fillText(item, this.ramOffsetX, this.ramOffsetY + j * 10);
         }
+    }
+
+    public drawControllerInput(bus: Bus): void {
+        const controller = bus.controller;
+        const controllerState = bus.getControllerState;
+        const actualRead = bus.debugRead(0x4016);
+
+        this.ctx.fillStyle = "black";
+        this.ctx.fillText(`controller 1: ${toHex(controller[0], 2)}`, 5, 90);
+        this.ctx.fillText(`controller state: ${toHex(controllerState[0], 2)}`, 105, 90);
+        this.ctx.fillText(`actual input: ${toHex(actualRead, 2)}`, 250, 90)
     }
 
     public drawSprite(spr: Sprite, x: number, y: number): void {

@@ -88,6 +88,9 @@ const IR = {
     fineY:      { pos: 12, width: 3 },
 }
 
+/**
+ * @see https://austinmorlan.com/posts/nes_rendering_overview/
+ */
 export default class PPU {
     /** NES palette */
     private palette: Pixel[] = [
@@ -185,6 +188,7 @@ export default class PPU {
     /** First or second write toggle (a.k.a. address latch), used by PPUSCROLL and PPUADDR */
     private w: number = 0x00;
 
+    /**  */
     private nametable:    Uint8Array[] = new Array<Uint8Array>(2);
     private patternTable: Uint8Array[] = new Array<Uint8Array>(2);
     private paletteTable: Uint8Array   = new Uint8Array(32);
@@ -192,14 +196,16 @@ export default class PPU {
     private spritePatternTable: Sprite[] = [ new Sprite(128, 128), new Sprite(128, 128) ];
     private spriteNameTable:    Sprite[] = [ new Sprite(256, 240), new Sprite(256, 240) ];
 
-    private shiftPatternLo:  Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
+    private shiftPatternLo: Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
     private shiftPatternHi: Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
 
     // the nesdev wiki clearly states that these are 8-bit registers
     // but everyone makes them 16-bit, and I fucking give up trying to
     // figure out why that's the case
-    private shiftAttribLo:  Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
-    private shiftAttribHi: Register<Uint16Array> = new Register<Uint16Array>(Uint16Array);
+    // I am going to make them 8 bit for the time being, until I can 
+    // figure out the reason, if that ever happens
+    private shiftAttribLo: Register<Uint8Array> = new Register<Uint8Array>(Uint8Array);
+    private shiftAttribHi: Register<Uint8Array> = new Register<Uint8Array>(Uint8Array);
 
     private tileID: number = 0x00;
     private tileAttr: number = 0x00;
@@ -333,6 +339,10 @@ export default class PPU {
             }
         }
         return this.spritePatternTable[patternTableIndex];
+    }
+    
+    public getNametable(nametableIndex: number): Sprite {
+        return this.spriteNameTable[nametableIndex];
     }
 
     private getColor(palette: number, pixel: number): Pixel {
@@ -850,8 +860,6 @@ export default class PPU {
         if (this.PPUMASK.getBit(PPUMASKFlag.b)) {
             const bitMux = 0x8000 >> this.fineX;
 
-            // I could just convert it into a number, but I don't trust JS at all
-            // if (this.scanline === 50) console.log(this.shiftPatternHigh.getValue)
             const p0 = +((this.shiftPatternLo.getValue  & bitMux) > 0);
             const p1 = +((this.shiftPatternHi.getValue & bitMux) > 0);
 
@@ -874,7 +882,6 @@ export default class PPU {
             if (this.scanline >= 261) {
                 this.scanline = -1;
                 this.frameComplete = true;
-                // console.log(this.nametable);
                 this.display.update();
             }
         }

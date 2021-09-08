@@ -1288,11 +1288,11 @@ export default class CPU {
         this.PS.storeBit(StatusFlag.C, this.fetched & 0x0001);
         const temp = this.fetched >> 1;
 
-        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x0080));
         this.PS.storeBit(StatusFlag.Z, +((temp & 0x00FF) === 0x0000));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp & 0x0080));
 
-        if (this.operations[this.opcode].addrMode === AddressingMode.IMM) {
-            this.ACC.setReg(temp);
+        if (this.operations[this.opcode].addrMode === AddressingMode.IMP) {
+            this.ACC.setReg(temp & 0x00FF);
         } else {
             this.bus.write(this.absAddress, temp & 0x00FF);
         }

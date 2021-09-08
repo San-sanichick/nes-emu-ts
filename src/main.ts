@@ -9,11 +9,14 @@ function createWindow() {
         preload: path.join(__dirname, "preload.js"),
         },
         width: 800,
+        show: false
     });
 
     // and load the index.html of the app.
     mainWindow.loadFile(path.join(__dirname, "../index.html"));
-
+    mainWindow.once("ready-to-show", () => {
+        mainWindow.show();
+    })
     // Open the DevTools.
     // mainWindow.webContents.openDevTools();
 }

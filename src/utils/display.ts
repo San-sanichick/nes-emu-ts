@@ -47,21 +47,28 @@ export default class Display {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
 
-    private readonly width: number = 256;
-    private readonly height: number = 240;
+    private width: number = 256;
+    private height: number = 240;
+    private scale: number = 1;
 
     // private frameBuffer: Uint32Array;
     private imageData: ImageData;
     
-    constructor(canvas: HTMLCanvasElement) {
+    constructor(canvas: HTMLCanvasElement, scale: number) {
         this.canvas = canvas;
         this.ctx = this.canvas.getContext("2d", { alpha: false });
 
         this.imageData = this.ctx.createImageData(this.width, this.height);
+        this.scale = scale;
+        this.width *= this.scale;
+        this.height *= this.scale;
         // this.frameBuffer = new Uint32Array(this.imageData.data.buffer);
         
         this.canvas.width = this.width;
         this.canvas.height = this.height;
+
+        this.canvas.style.width = `${this.width}px`;
+        this.canvas.style.height = `${this.height}px`;
     }
 
     public drawPixel(x: number, y: number, color: Pixel): void {
@@ -75,13 +82,36 @@ export default class Display {
 
     public update(): void {
         this.ctx.clearRect(0, 0, this.width, this.height);
+        // const frame = Display.resizeImageData(this.imageData, 1);
         this.ctx.putImageData(this.imageData, 0, 0);
-        // this.ctx.fillStyle = "green";
-        // this.ctx.fillRect(0, 0, 20, 20);
     }
 
     public updateFrom(spr: Sprite): void {
         this.ctx.clearRect(0, 0, this.width, this.height);
         this.ctx.putImageData(spr.getSprite(), 0, 0);
     }
+
+    public static resizeImageData(imageData: ImageData, scale: number): ImageData{
+        const canvas = document.createElement("canvas") as HTMLCanvasElement;
+        const ctx = canvas.getContext("2d");
+
+        const scaled = ctx.createImageData(imageData.width * scale, imageData.height * scale);
+        const subLine = ctx.createImageData(scale, 1).data
+        for (let row = 0; row < imageData.height; row++) {
+            for (let col = 0; col < imageData.width; col++) {
+                const sourcePixel = imageData.data.subarray(
+                    (row * imageData.width + col) * 4,
+                    (row * imageData.width + col) * 4 + 4
+                );
+                for (let x = 0; x < scale; x++) subLine.set(sourcePixel, x*4)
+                for (let y = 0; y < scale; y++) {
+                    const destRow = row * scale + y;
+                    const destCol = col * scale;
+                    scaled.data.set(subLine, (destRow * scaled.width + destCol) * 4)
+                }
+            }
+        }
+
+        return scaled;
+    } 
 }
