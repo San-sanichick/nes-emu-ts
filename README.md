@@ -5,7 +5,7 @@ how NES hardware worked, just because I can. Or cannot. It depends.
 
 This codebase is half written by me just reading the NESDEV wiki and other sources, 
 half adapting a C++ project mentioned down below. This codebase also uses TypeScript,
-which might seem like a great idea, until you realise that doesn't really improve on JavaScript's
+which might seem like a great idea, until you realise that it doesn't really improve on JavaScript's
 inability to handle 8-bit and 16-bit variables in an elegant way.
 
 **TODO**
