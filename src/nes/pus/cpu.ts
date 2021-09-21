@@ -1,6 +1,6 @@
 import Bus from "../bus";
 import Register from "./register";
-import { toHex } from "../utils/utils";
+import { toHex } from "../../utils/utils";
 
 /**
  * 7         6         5-4         3        2                  1     0

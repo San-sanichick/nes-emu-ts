@@ -1,5 +1,5 @@
-import { isInRange } from "../utils/utils";
-import Display, { Pixel, Sprite } from "../utils/display";
+import { isInRange } from "../../utils/utils";
+import Display, { Pixel, Sprite } from "../../utils/display";
 import Register from "./register";
 import ROM from "../rom/rom";
 import { Mirroring } from "../rom/romHeader";

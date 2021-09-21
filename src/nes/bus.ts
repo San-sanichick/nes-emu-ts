@@ -1,8 +1,8 @@
 import CPU from "./pus/cpu";
 import PPU from "./pus/ppu";
 import ROM from "./rom/rom";
-import Display from "./utils/display";
-import { isInRange, toHex } from "./utils/utils";
+import Display from "../utils/display";
+import { isInRange } from "../utils/utils";
 
 export default class Bus {
     /** Cartridge ROM */

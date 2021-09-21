@@ -1,11 +1,11 @@
 // All of the Node.js APIs are available in the preload process.
 // It has the same sandbox as a Chrome extension.
 import { readFileSync } from "original-fs";
-import Bus from "./bus";
-import Pad from "./pad";
-import CPU from "./pus/cpu";
+import Bus from "./nes/bus";
+import Pad from "./nes/pad";
+import CPU from "./nes/pus/cpu";
 // import Pad from "./pad";
-import ROM from "./rom/rom";
+import ROM from "./nes/rom/rom";
 import DebugDisplay from "./utils/debugDisplay";
 import Display from "./utils/display";
 import { fastRounding } from "./utils/utils";
@@ -43,31 +43,54 @@ window.addEventListener("DOMContentLoaded", () => {
 
     drawDebug();
 
+    let 
+        fpsInterval = 0,
+        startTime   = 0,
+        now         = 0,
+        then        = 0,
+        elapsed     = 0,
+        frameCount  = 0;
+
+    const startUpdate = (fps: number): void => {
+        fpsInterval = 1000 / fps;
+        then = performance.now();
+        startTime = then;
+        update();
+    }
+
     const update = (): void => {
-        const t = performance.now();
-        pad.updateButtonState(navigator.getGamepads()[0]);
-        bus.controller[0] = 0x00;
-        bus.controller[0] |= pad.getButtonsState.A      ? 0x80 : 0x00;
-        bus.controller[0] |= pad.getButtonsState.B      ? 0x40 : 0x00;
-        bus.controller[0] |= pad.getButtonsState.select ? 0x20 : 0x00;
-        bus.controller[0] |= pad.getButtonsState.start  ? 0x10 : 0x00;
-        bus.controller[0] |= pad.getButtonsState.up     ? 0x08 : 0x00;
-        bus.controller[0] |= pad.getButtonsState.down   ? 0x04 : 0x00;
-        bus.controller[0] |= pad.getButtonsState.left   ? 0x02 : 0x00;
-        bus.controller[0] |= pad.getButtonsState.right  ? 0x01 : 0x00;
-        // complete the frame
-        do {
-            bus.clock();
-        } while (!bus.ppu.frameComplete);
-        bus.ppu.frameComplete = false;
-
-        const tComplete = performance.now() - t;
-        fpsDisplay.textContent = `${(1000 / fastRounding(tComplete)).toFixed(0)} fps`;
-
-        drawDebug();
-
         if (run) {
             requestAnimationFrame(update);
+        }
+
+        now = performance.now();
+        elapsed = now - then;
+
+        if (elapsed > fpsInterval) {
+            then = now - (elapsed % fpsInterval);
+
+            pad.updateButtonState(navigator.getGamepads()[0]);
+            bus.controller[0] = 0x00;
+            bus.controller[0] |= pad.getButtonsState.A      ? 0x80 : 0x00;
+            bus.controller[0] |= pad.getButtonsState.B      ? 0x40 : 0x00;
+            bus.controller[0] |= pad.getButtonsState.select ? 0x20 : 0x00;
+            bus.controller[0] |= pad.getButtonsState.start  ? 0x10 : 0x00;
+            bus.controller[0] |= pad.getButtonsState.up     ? 0x08 : 0x00;
+            bus.controller[0] |= pad.getButtonsState.down   ? 0x04 : 0x00;
+            bus.controller[0] |= pad.getButtonsState.left   ? 0x02 : 0x00;
+            bus.controller[0] |= pad.getButtonsState.right  ? 0x01 : 0x00;
+
+            // complete the frame
+            do {
+                bus.clock();
+            } while (!bus.ppu.frameComplete);
+            bus.ppu.frameComplete = false;
+
+            const sinceStart = now - startTime;
+            const currentFPS = fastRounding(1000 / (sinceStart / ++frameCount) * 100) / 100;
+            fpsDisplay.textContent = `${currentFPS} fps`;
+            
+            drawDebug();
         }
     }
 
@@ -83,7 +106,7 @@ window.addEventListener("DOMContentLoaded", () => {
     runBtn.addEventListener("click", () => {
         run = true;
         singleStepBtn.disabled = true;
-        update();
+        startUpdate(60);
     });
 
     pauseBtn.addEventListener("click", () => {

@@ -1,9 +1,9 @@
-import Register from "../pus/register";
-import CPU from "../pus/cpu";
+import Register from "../nes/pus/register";
+import CPU from "../nes/pus/cpu";
 import { toHex } from "./utils";
-import PPU from "../pus/ppu";
+import PPU from "../nes/pus/ppu";
 import { Sprite } from "./display";
-import Bus from "../bus";
+import Bus from "../nes/bus";
 
 export default class DebugDisplay {
     private canvas: HTMLCanvasElement;

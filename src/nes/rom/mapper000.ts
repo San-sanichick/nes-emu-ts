@@ -1,5 +1,5 @@
 import Mapper from "./mapper";
-import { isInRange } from "../utils/utils";
+import { isInRange } from "../../utils/utils";
 
 export default class Mapper000 extends Mapper {
 

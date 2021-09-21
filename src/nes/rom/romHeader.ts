@@ -1,4 +1,4 @@
-import { toBinary } from "../utils/utils";
+import { toBinary } from "../../utils/utils";
 
 
 interface Flags6 {
