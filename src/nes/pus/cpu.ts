@@ -820,14 +820,12 @@ export default class CPU {
      */
     private ADC(): number {
         this.fetched = this.loadFromMemory();
-        // const temp = this.ACC.getValue + this.fetched + this.PS.getBit(StatusFlag.C);
         const temp: Uint16Array = new Uint16Array(1);
         temp[0] = this.ACC.getValue + this.fetched + this.PS.getBit(StatusFlag.C);
-        // this.absAddress = temp[0];
 
         this.PS.storeBit(StatusFlag.C, +(temp[0] > 255));
         this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0));
-        this.PS.storeBit(StatusFlag.V, (~(this.ACC.getValue ^ this.fetched) & (this.ACC.getValue ^ temp[0]) & 0x0080));
+        this.PS.storeBit(StatusFlag.V, (~((this.ACC.getValue ^ this.fetched) & (this.ACC.getValue ^ temp[0])) & 0x0080));
         this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x80));
 
         this.ACC.setReg(temp[0] & 0x00FF);
@@ -858,11 +856,11 @@ export default class CPU {
         temp[0] = this.fetched << 1;
 
         this.PS.storeBit(StatusFlag.C, +((temp[0] & 0xFF00) > 0));
-        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x80));
         this.PS.storeBit(StatusFlag.Z, +((temp[0] & 0x00FF) === 0));
+        this.PS.storeBit(StatusFlag.N, +Boolean(temp[0] & 0x80));
 
         if (this.operations[this.opcode].addrMode === AddressingMode.IMM) {
-            this.ACC.setReg(temp[0]);
+            this.ACC.setReg(temp[0] & 0x00FF);
         } else {
             this.bus.write(this.absAddress, temp[0] & 0x00FF);
         }
