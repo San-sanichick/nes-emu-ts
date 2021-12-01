@@ -29,6 +29,6 @@ raw Assembler, anything.
 - Rewrite this emulator using AssemblyScript
 - Rewrite this emulator NOT using a bloody browser
 
-For more info on NES, I highly suggest to read the [NESDEV wiki](https://wiki.nesdev.com/w/index.php?title=Nesdev_Wiki), and
+For more info on NES, I highly suggest to read the [NESDEV wiki](https://wiki.nesdev.org/w/index.php/Nesdev_Wiki), and
 also check out this [video series](https://youtube.com/playlist?list=PLrOv9FMX8xJHqMvSGB_9G9nZZ_4IgteYf).
 
